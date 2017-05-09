@@ -1,0 +1,16 @@
+This package contains codes that make use of the outputs of tardis.
+
+"""
+compute_features: will extract information such as the pEW's, depths, etc from features present in the spectra.
+"""
+ 
+"""
+tardis_kromer/minimal: are used to produce a 'Kromer' plot from the output information when tardis is run with the logging option.
+""" 
+
+This packege is to be located in the same directory as other packages such gui, montecarlo, plasma, etc.
+Note that is has to be placed in the installation directory!
+E.g.: ~/anaconda2/envs/tardis_logging/lib/python2.7/site-packages/tardis_sn-1.5.dev2683-py2.7-linux-x86_64.egg/tardis/
+
+It is to be imported as, for instance:
+E.g.: from tardis.tools import compute_features
