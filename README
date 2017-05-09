@@ -5,7 +5,9 @@ compute_features: will extract information such as the pEW's, depths, etc from f
 """
  
 """
-tardis_kromer/minimal: are used to produce a 'Kromer' plot from the output information when tardis is run with the logging option.
+tardis_kromer/minimal: are used to produce a 'Kromer' plot from the output information when tardis
+is run with the logging option. These files are originally from the tardisanalysis package and have been palced here
+for convinience only.
 """ 
 
 This packege is to be located in the same directory as other packages such gui, montecarlo, plasma, etc.
