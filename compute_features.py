@@ -2,14 +2,10 @@
 
 ############################  IMPORTS  #################################
 
-#say aloi
 import os																
 import sys
 import time
 import warnings
-
-path_S																	= os.environ["PATH_subtypes_main"]
-sys.path.insert(1,path_S+'codes/modules/')
 
 import numpy															as np
 import pandas															as pd
@@ -24,8 +20,6 @@ from matplotlib.ticker 													import MultipleLocator
 from astropy															import constants as const
 from scipy.interpolate													import interp1d
 
-import read_data_v2														as re
-import utility															as ut
 import astropy
 import math			
 from math																import factorial	
