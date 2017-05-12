@@ -12,7 +12,6 @@ import matplotlib.patches as patches
 import matplotlib.lines as lines
 import matplotlib.cm as cm
 from tardis_minimal_model import minimal_model
-from matplotlib.ticker import MultipleLocator
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +68,7 @@ class tardis_kromer_plotter(object):
         self.mode = mode
 
         self._mdl = None
-        self._zmax = 28
+        self._zmax = 32
         self._cmap = cm.jet
         self._xlim = None
         self._ylim = None
@@ -93,8 +92,6 @@ class tardis_kromer_plotter(object):
         self._line_out_infos = None
         self._line_out_nu = None
         self._line_out_L = None
-        
-        self.list_of_el = [6, 8, 11, 12, 13, 14, 16, 20, 22, 24, 25, 26, 27, 28]
 
         self.mdl = mdl
 
@@ -315,7 +312,7 @@ class tardis_kromer_plotter(object):
         self._line_out_nu = None
         self._line_out_L = None
 
-    def generate_plot(self, ax=None, cmap=cm.Set1, bins=None, xlim=None,
+    def generate_plot(self, ax=None, cmap=cm.jet, bins=None, xlim=None,
                       ylim=None, twinx=False):
         """Generate the actual "Kromer" plot
 
@@ -376,7 +373,7 @@ class tardis_kromer_plotter(object):
         """prepare the main axes; create a new axes if none exists"""
 
         if self._ax is None:
-            self._ax = plt.figure(figsize=(16,10)).add_subplot(111)
+            self._ax = plt.figure().add_subplot(111)
 
     def _paxes_handling_preparation(self):
         """prepare the axes for the absorption part of the Kromer plot
@@ -392,23 +389,22 @@ class tardis_kromer_plotter(object):
 
         lams = [self.lam_noint, self.lam_escat]
         weights = [self.weights_noint, self.weights_escat]
-        #colors = ["lightskyblue", "r"]
-        colors = ["b", "dodgerblue"]
+        colors = ["black", "grey"]
 
-        for i, zi in enumerate(self.list_of_el):
+        for zi in xrange(1, self.zmax+1):
             mask = self.line_out_infos.atomic_number.values == zi
             lams.append((csts.c.cgs / (self.line_out_nu[mask])).to(units.AA))
             weights.append(self.line_out_L[mask] /
                            self.mdl.time_of_simulation)
-            colors.append(self.cmap(float(i+1) / len(self.list_of_el) ))
+            colors.append(self.cmap(float(zi) / float(self.zmax)))
 
         Lnorm = 0
         for w in weights:
             Lnorm += np.sum(w)
-                
+
         ret = self.ax.hist(lams, bins=self.bins, stacked=True,
                            histtype="stepfilled", normed=True, weights=weights)
- 
+
         for i, col in enumerate(ret[-1]):
             for reti in col:
                 reti.set_facecolor(colors[i])
@@ -418,7 +414,7 @@ class tardis_kromer_plotter(object):
 
         self.ax.plot(self.mdl.spectrum_wave,
                      self.mdl.spectrum_luminosity,
-                     color="black", drawstyle="steps-post", lw=0.5)
+                     color="blue", drawstyle="steps-post", lw=0.5)
 
     def _generate_absorption_part(self):
         """generate the absorption part of the Kromer plot"""
@@ -427,12 +423,12 @@ class tardis_kromer_plotter(object):
         weights = []
         colors = []
 
-        for i, zi in enumerate(self.list_of_el):
+        for zi in xrange(1, self.zmax+1):
             mask = self.line_in_infos.atomic_number.values == zi
             lams.append((csts.c.cgs / self.line_in_nu[mask]).to(units.AA))
             weights.append(self.line_in_L[mask] /
                            self.mdl.time_of_simulation)
-            colors.append(self.cmap(float(i+1) / len(self.list_of_el) ))
+            colors.append(self.cmap(float(zi) / float(self.zmax)))
 
         Lnorm = 0
         for w in weights:
@@ -453,29 +449,29 @@ class tardis_kromer_plotter(object):
         """generate the custom color map, linking colours with atomic
         numbers"""
 
-        values = [self.cmap(float(i) / len(self.list_of_el))
-                  for i in xrange(1, len(self.list_of_el)+1)]
+        values = [self.cmap(float(i) / float(self.zmax))
+                  for i in xrange(1, self.zmax+1)]
+
         custcmap = matplotlib.colors.ListedColormap(values)
-        bounds = np.arange(len(self.list_of_el)+1) + 0.5
-        norm = matplotlib.colors.Normalize(vmin=1, vmax=len(self.list_of_el)+1)
+        bounds = np.arange(self.zmax+1) + 0.5
+        norm = matplotlib.colors.Normalize(vmin=1, vmax=self.zmax+1)
         mappable = cm.ScalarMappable(norm=norm, cmap=custcmap)
-        mappable.set_array(np.linspace(1, len(self.list_of_el)+1, 256))
+        mappable.set_array(np.linspace(1, self.zmax + 1, 256))
         labels = [inv_elements[zi].capitalize()
-                  for zi in self.list_of_el]
+                  for zi in xrange(1, self.zmax+1)]
 
         mainax = self.ax
         cbar = plt.colorbar(mappable, ax=mainax)
         cbar.set_ticks(bounds)
         cbar.set_ticklabels(labels)
-        cbar.ax.tick_params(labelsize=18.)
 
     def _generate_and_add_legend(self):
         """add legend"""
-        bpatch = patches.Patch(color="b", label="photosphere")
-        gpatch = patches.Patch(color="dodgerblue", label="e-scattering")
-        bline = lines.Line2D([], [], color="black", label="virtual spectrum")
-        #self.ax.legend(handles=[bline, gpatch, bpatch], frameon=True, fontsize=18., numpoints=1, labelspacing=0.05 ,loc=(0.775,0.5))
-        self.ax.legend(handles=[bline, gpatch, bpatch], frameon=True, fontsize=18., numpoints=1, labelspacing=0.05 ,loc=1)
+
+        bpatch = patches.Patch(color="black", label="photosphere")
+        gpatch = patches.Patch(color="grey", label="e-scattering")
+        bline = lines.Line2D([], [], color="blue", label="virtual spectrum")
+        self.ax.legend(handles=[bline, gpatch, bpatch])
 
     def _axis_handling_label_rescale(self):
         """add axis labels and perform axis scaling"""
@@ -501,14 +497,6 @@ class tardis_kromer_plotter(object):
             self.pax.set_ylim([-self.ylim[-1], self.ylim[-1]])
         self.pax.set_xlim(self.xlim)
 
-        self.ax.tick_params(axis='y', which='major', labelsize=18, pad=8)
-        self.ax.tick_params(axis='x', which='major', labelsize=18, pad=8)
-        self.ax.minorticks_on()
-        self.ax.tick_params('both', length=8, width=1, which='major')
-        self.ax.tick_params('both', length=4, width=1, which='minor')
-        self.ax.xaxis.set_minor_locator(MultipleLocator(500.))
-        self.ax.xaxis.set_major_locator(MultipleLocator(1000.))
-        
-        self.ax.set_xlabel(r"$\lambda$ [$\mathrm{\AA}$]",fontsize=18)
+        self.ax.set_xlabel(r"$\lambda$ [$\mathrm{\AA}$]")
         ylabel = r"$L_{\mathrm{\lambda}}$ [$\mathrm{erg\,s^{-1}\,\AA^{-1}}$]"
-        self.ax.set_ylabel(ylabel,fontsize=18)
+        self.ax.set_ylabel(ylabel)
