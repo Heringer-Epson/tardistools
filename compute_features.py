@@ -230,11 +230,16 @@ class analyse_spectra(Utility):
                    +str(format(time.time()-start_time, '.1f'))+'s)')
 
     def find_zeros_in_features(self):
-        """ No feature boundary if no peak in the region.
-        If only one peak, then maxima is trivially determined.
-        If more than one peak in the line (blue or red) window, then
-        usually choose the largest peak, but the proceedure is feature
-        dependent. This needs the wavelength arrays to be ordered.
+        """ Find where the deepest minimum in the feature region is. Then
+        selected the closest maxima to the red and blue as the boundaries of
+        the feature. If the deepest minimum has no maximum either to the red or
+        to the blue, then select the next deepest minimum. Once the 'true'
+        minimum is determined, if there are more than one maximum to the red
+        or blue, then check if the nearest maxima are not shoulders by checking
+        for the presence another minimum withing the self.sep window of the
+        nearest maximum. If the maximum is deemed as a shoulder and if
+        there is another bluer/redder minumum bounded by another maximum,
+        then determine this minimum as the true one.
         """         
         start_time = time.time()
         def get_zeros(wavelength, flux, derivative, key):
