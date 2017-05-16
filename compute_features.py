@@ -40,7 +40,7 @@ class Utility(object):
             return a*(x-x_ref)**2.+b*(x-x_ref)+c
         return parabola     
     
-class analyse_spectra(Utility):
+class Analyse_Spectra(Utility):
 
     """ Computes a set of spectral features, given an input dictioanry
     containing ['wavelength_raw'] and ['flux_raw'].
@@ -663,7 +663,7 @@ class analyse_spectra(Utility):
        
         return self.DF  
 
-class uncertainty(Utility):
+class Compute_Uncertainty(Utility):
     """Uses a MC approach to compute the uncertainty of spectral features.
     As a guideline, this follows Liu+ 2016
     [[http://adsabs.harvard.edu/abs/2016ApJ...827...90L]].
@@ -889,7 +889,7 @@ class uncertainty(Utility):
             #Check whether the mock spectra were successfully created.
             if any(mock_spectra_dict):
                 
-                mock_spectra_dict = analyse_spectra(
+                mock_spectra_dict = Analyse_Spectra(
                   mock_spectra_dict, smoothing_mode='savgol', 
                   smoothing_window = self.smoothing_window,
                   deredshift_and_normalize=False, verbose=False).run_analysis() 
