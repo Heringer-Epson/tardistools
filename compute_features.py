@@ -129,11 +129,11 @@ class Analyse_Spectra(Utility):
     def deredshift_spectrum(self):
         """Data downloaded from BSNIP is not in rest-wavelength."""
         start_time = time.time()
-        def remove_redshift(wavelength,redshift):      
+        def remove_redshift(wavelength, redshift):      
             try:
                 wavelength = np.asarray(wavelength).astype(np.float)
                 redshift = float(redshift)
-                wavelength = wavelength / (1.+redshift)
+                wavelength = wavelength / (1. + redshift)
             except:
                 wavelength = np.full(len(wavelength), np.nan)
             return wavelength
@@ -146,21 +146,28 @@ class Analyse_Spectra(Utility):
             print ('  -RAN: De-redshifting the spectra. FINISHED IN ('
                    +str(format(time.time()-start_time, '.1f'))+'s)')
 
-    def normalize_flux_to_max(self):
+    def normalize_flux(self):
         """ Normalize the flux to relative units so that methods such as
         wavelet smoothing can be applied if requested.
         """ 
         start_time = time.time()
 
-        def get_normalized_flux(flux):
-            aux_flux = np.asarray(flux).astype(np.float)
-            normalization_factor = max(aux_flux)
-            aux_flux = aux_flux/normalization_factor
+        def get_normalized_flux(wavelength, flux):          
+            aux_wavelength = np.asarray(wavelength).astype(np.float)
+            aux_flux = np.asarray(flux).astype(np.float)                    
+            
+            #Wavelength window where the mean flux is computed.
+            window_condition = ((wavelength >= 4000.) & (wavelength <= 9000.))             
+            
+            flux_window = aux_flux[window_condition]
+            normalization_factor = np.mean(flux_window)     
+            aux_flux = aux_flux / normalization_factor
             aux_flux = list(aux_flux)
             return aux_flux
        
         self.DF['flux_normalized'] = self.DF.apply(
-          lambda row: get_normalized_flux(row['flux_raw']), axis=1)   
+          lambda row: get_normalized_flux(row['wavelength_raw'],
+        row['flux_raw']), axis=1)   
        
         if self.verbose:
             print ('  -RAN: Normalizing flux to maximum. FINISHED IN ('
@@ -238,7 +245,7 @@ class Analyse_Spectra(Utility):
         or blue, then check if the nearest maxima are not shoulders by checking
         for the presence another minimum withing the self.sep window of the
         nearest maximum. If the maximum is deemed as a shoulder and if
-        there is another bluer/redder minumum bounded by another maximum,
+        there is another bluer/redder minimum bounded by another maximum,
         then determine this minimum as the true one.
         """         
         start_time = time.time()
@@ -246,12 +253,18 @@ class Analyse_Spectra(Utility):
             wavelength = np.asarray(wavelength).astype(np.float)
             flux = np.asarray(flux).astype(np.float)
             derivative = np.asarray(derivative).astype(np.float)
-            
+
             window_condition = ((wavelength >= self.MD['blue_lower_f'+key])
                                 & (wavelength <= self.MD['red_upper_f'+key]))          
                   
+            
+            #print flux
+            #print list(wavelength)
+            #print wavelength[wavelength >= 5750]
+            
             w_window = wavelength[window_condition]
             f_window = flux[window_condition]
+            #print f_window
             der_window = derivative[window_condition]    
             
             idx_minima_window = [idx for idx, (w,f,der,der_next)
@@ -415,6 +428,8 @@ class Analyse_Spectra(Utility):
         
         for key in self.keys:
            
+            #print 'aloi', list(self.DF['wavelength_raw'])        
+            
             feature_zeros = self.DF.apply(
               lambda row: pd.Series(get_zeros(
               row['wavelength_smoothed'],row['flux_smoothed'],
@@ -648,7 +663,7 @@ class Analyse_Spectra(Utility):
     def run_analysis(self):
         if self.deredshift_and_normalize:
             self.deredshift_spectrum()
-            self.normalize_flux_to_max()    
+            self.normalize_flux()    
         self.smooth_spectrum()  
         self.find_zeros_in_features()
         self.grab_feature_regions()
@@ -838,7 +853,14 @@ class Compute_Uncertainty(Utility):
                   self.N_MC_runs / 6., quantity_median, abs(quantity_median / 5.)])
                 
                 gaussian_mean = popt[1]
+                
                 unc = abs(popt[2])
+                #If uncertainty is smaller than bin_size, something is likely
+                #wrong, so the object is flagged and the uncertainty becomes
+                #the bin_size.
+                if unc < bin_size:
+                    unc = bin_size
+                    flag = True  
 
                 #If the measured feature is nan, then assess whether the
                 #feature value is relatively close to the median of the MC
