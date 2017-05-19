@@ -160,7 +160,9 @@ class Analyse_Spectra(Utility):
             window_condition = ((wavelength >= 4000.) & (wavelength <= 9000.))             
             
             flux_window = aux_flux[window_condition]
-            normalization_factor = np.mean(flux_window)     
+            #normalization_factor = np.mean(flux_window)     
+            normalization_factor = max(aux_flux)     
+            
             aux_flux = aux_flux / normalization_factor
             aux_flux = list(aux_flux)
             return aux_flux
@@ -257,11 +259,6 @@ class Analyse_Spectra(Utility):
             window_condition = ((wavelength >= self.MD['blue_lower_f'+key])
                                 & (wavelength <= self.MD['red_upper_f'+key]))          
                   
-            
-            #print flux
-            #print list(wavelength)
-            #print wavelength[wavelength >= 5750]
-            
             w_window = wavelength[window_condition]
             f_window = flux[window_condition]
             #print f_window
@@ -427,9 +424,7 @@ class Analyse_Spectra(Utility):
                    float(f_max_blue), float(w_max_red), float(f_max_red)
         
         for key in self.keys:
-           
-            #print 'aloi', list(self.DF['wavelength_raw'])        
-            
+                       
             feature_zeros = self.DF.apply(
               lambda row: pd.Series(get_zeros(
               row['wavelength_smoothed'],row['flux_smoothed'],
@@ -564,7 +559,7 @@ class Analyse_Spectra(Utility):
                         delta_lambda = abs(
                           wavelength_region[i+1] - wavelength_region[i])
                         
-                        pEW += delta_lambda*(p - f)/p
+                        pEW += delta_lambda * (p - f) / p
                         
                 else:
                     pEW = np.nan                                    
