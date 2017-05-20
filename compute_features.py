@@ -160,8 +160,8 @@ class Analyse_Spectra(Utility):
             window_condition = ((wavelength >= 4000.) & (wavelength <= 9000.))             
             
             flux_window = aux_flux[window_condition]
-            #normalization_factor = np.mean(flux_window)     
-            normalization_factor = max(aux_flux)     
+            normalization_factor = np.mean(flux_window)     
+            #normalization_factor = max(aux_flux)     
             
             aux_flux = aux_flux / normalization_factor
             aux_flux = list(aux_flux)
@@ -255,13 +255,13 @@ class Analyse_Spectra(Utility):
             wavelength = np.asarray(wavelength).astype(np.float)
             flux = np.asarray(flux).astype(np.float)
             derivative = np.asarray(derivative).astype(np.float)
-
+            
+            #Retrieve all maxima and minima that are within the feature range.
             window_condition = ((wavelength >= self.MD['blue_lower_f'+key])
                                 & (wavelength <= self.MD['red_upper_f'+key]))          
                   
             w_window = wavelength[window_condition]
             f_window = flux[window_condition]
-            #print f_window
             der_window = derivative[window_condition]    
             
             idx_minima_window = [idx for idx, (w,f,der,der_next)
@@ -282,21 +282,42 @@ class Analyse_Spectra(Utility):
               in idx_maxima_window])
             f_maxima_window = np.asarray([f_window[idx] for idx
               in idx_maxima_window])
-
-            #Find where the true minimum of the feature is.
-            #Iterate over the minima to find the deepest point
-            #that contains a maximum to the right and to the left.          
             
+            def guess_minimum(potential_w, potential_f):
+                """ In low noise spectra, get minimum at wavelength where the
+                line would have been shifted due to a typical ejecta
+                velocity of ~ -12,000 km/s. Maybe need some improvement to also
+                consider the deepest minimum.
+                """
+                if len(potential_w) < 5:
+                    rest_w = np.mean(self.MD['rest_f' + key])
+                    typical_v = -12000.
+                    c = const.c.to('km/s').value
+                    
+                    typical_w = (rest_w * np.sqrt(1. + typical_v / c) / 
+                      np.sqrt(1. + typical_v / c))
+                      
+                    w_diff =  np.array([abs(w - typical_w) for w in potential_w])
+                    w_guess = potential_w[w_diff.argmin()]
+                    f_guess = potential_f[w_diff.argmin()]
+                                        
+                #In noisy spectra, get the deepest minimum.
+                elif len(potential_w) > 5:
+                    f_guess = min(potential_f) 
+                    w_guess = potential_w[potential_f.argmin()]
+                    
+                return w_guess, f_guess    
+                      
             copy_w_minima_window = w_minima_window[:]
             copy_f_minima_window = f_minima_window[:]
 
             for i in range(len(w_minima_window)):
                 if len(copy_w_minima_window) > 0:
                     
-                    #Get the deepest minimum.
-                    w_min = copy_w_minima_window[copy_f_minima_window.argmin()]
-                    f_min = min(copy_f_minima_window)
-                    
+                    #Guess the minimum.
+                    w_min, f_min = guess_minimum(copy_w_minima_window,
+                                                 copy_f_minima_window)
+                                                          
                     #Trimming minima and maxima in feature window:
                     #Select only minima/maxima in the left (right) side of the
                     #true minimum for the blue (red) window. These are bounded
@@ -314,9 +335,9 @@ class Analyse_Spectra(Utility):
                       & (w_minima_window >= self.MD['blue_lower_f'+key]))
                               
                     maxima_window_blue_condition = (max_blue_condition
-                    & (w_maxima_window <= self.MD['blue_upper_f'+key])
-                    & (w_maxima_window >= self.MD['blue_lower_f'+key]))              
-                   
+                      & (w_maxima_window <= self.MD['blue_upper_f'+key])
+                      & (w_maxima_window >= self.MD['blue_lower_f'+key]))              
+                                       
                     minima_window_red_condition = (min_red_condition
                       & (w_minima_window <= self.MD['red_upper_f'+key])
                       & (w_minima_window >= self.MD['red_lower_f'+key]))                      
@@ -379,7 +400,7 @@ class Analyse_Spectra(Utility):
             if not np.isnan(w_max_blue) and len(w_maxima_window_blue)>1:   
                 
                 #Compute wavelength separation between minima to the maximum.
-                d_minima_window_blue = w_minima_window_blue - w_max_blue   
+                d_minima_window_blue = w_minima_window_blue - w_max_blue
                 
                 #Select only the minima which are bluer than the maximum
                 #and within the separation window.
@@ -512,7 +533,7 @@ class Analyse_Spectra(Utility):
 
                 #Check whether the continuum is always higher than the
                 #**smoothed** flux and the array contains more than one element.
-                boolean_check = [(f_s-f_c)>0.01 for (f_c,f_s)
+                boolean_check = [(f_s-f_c) / f_c > 0.10 for (f_c, f_s)
                                  in zip(pseudo_flux, f_smoothed)]
                        
                 if True in boolean_check or len(pseudo_flux) < 1:
@@ -520,10 +541,11 @@ class Analyse_Spectra(Utility):
 
             except:
                 pseudo_flux = 'Failed'
+
             return pseudo_flux                                          
         
         for key in self.keys:
-            
+                        
             pseudo_cont_flux = self.DF.apply(
               lambda row: pd.Series([get_psedo_continuum_flux(
               row['wavelength_region_f'+key],
@@ -569,8 +591,7 @@ class Analyse_Spectra(Utility):
             
             return pEW
 
-        for key in self.keys:
-           
+        for key in self.keys:           
             pEW_value = self.DF.apply(
               lambda row: pd.Series(get_pEW(
               row['wavelength_region_f'+key], 
@@ -616,7 +637,7 @@ class Analyse_Spectra(Utility):
                 popt, covt = curve_fit(par_to_fit, wavelength_par_window, 
                                        flux_par_window)
                         
-                rest_wavelength = sum(rest_wavelength) / len(rest_wavelength)
+                rest_wavelength = np.mean(rest_wavelength)
                 wavelength_par_min = wavelength_at_min - popt[1] / (2*popt[0])
                 flux_par_min = par_to_fit(wavelength_par_min, popt[0], popt[1],
                                           popt[2])        
