@@ -7,6 +7,9 @@ import warnings
 
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
+import matplotlib as mpl
+from matplotlib.ticker import MultipleLocator
 import scipy
 
 from scipy.optimize import curve_fit, OptimizeWarning
@@ -15,6 +18,10 @@ from astropy import constants as const
 import astropy
 import math         
 from math import factorial    
+
+mpl.rcParams['mathtext.fontset'] = 'stix'
+mpl.rcParams['mathtext.fontset'] = 'stix'
+mpl.rcParams['font.family'] = 'STIXGeneral'
 
 warnings.simplefilter('error',OptimizeWarning)
 
@@ -306,6 +313,10 @@ class Analyse_Spectra(Utility):
                     f_guess = min(potential_f) 
                     w_guess = potential_w[potential_f.argmin()]
                     
+                else:    
+                    f_guess = np.nan
+                    w_guess = np.nan
+                                        
                 return w_guess, f_guess    
                       
             copy_w_minima_window = w_minima_window[:]
@@ -984,8 +995,93 @@ class Compute_Uncertainty(Utility):
             del mock_spectra_dict
                             
         print ("    -TOTAL TIME IN COMPUTING UNCERTAINTIES: "
-               +str(format(time.time()-self.time, '.1f'))+'s')         
+               + str(format(time.time()-self.time, '.1f'))+'s')         
         print '    *** RUN COMPLETED SUCCESSFULLY ***\n'
 
         return self.df  
+
+class Plot_Spectra(object):
+    """
+    """
+    
+    def __init__(self, dataframe, out_dir=False, show_fig=False, save_fig=False):
+        self.df = dataframe
+        self.out_dir = out_dir
+        self.show_fig = show_fig
+        self.save_fig = save_fig
+       
+        self.fs_label = 26
+        self.fs_ticks = 26
+        self.fs_legend = 20
+        self.fs_text = 22
+        self.fs_as = 24
+        self.fs_feature = 14       
+        
+        self.make_plots()
+
+    def set_fig_frame(self, ax):
+        x_label = r'$\lambda \ \mathrm{[\AA}]}$'
+        y_label = r'$\mathrm{Relative \ f}_{\lambda}$'
+        ax.set_xlabel(x_label, fontsize=self.fs_label)
+        ax.set_ylabel(y_label, fontsize=self.fs_label)
+        ax.set_xlim(2500.,10000.)
+        ax.set_ylim(0., 3.)
+        ax.tick_params(axis='y', which='major', labelsize=self.fs_ticks, pad=8)
+        ax.tick_params(axis='x', which='major', labelsize=self.fs_ticks, pad=8)
+        ax.minorticks_on()
+        ax.tick_params('both', length=8, width=1, which='major')
+        ax.tick_params('both', length=4, width=1, which='minor')
+        ax.xaxis.set_minor_locator(MultipleLocator(500.))
+        ax.xaxis.set_major_locator(MultipleLocator(2000.))
+        ax.yaxis.set_minor_locator(MultipleLocator(0.1))
+        ax.yaxis.set_major_locator(MultipleLocator(0.5))
+        
+    def plot_spectrum(self, ax, w, f, color, alpha):
+        ax.plot(w, f, color=color, alpha=0.5)                
+
+    def add_feature_shade(self, ax, w, f, f_c, color, alpha):
+        ax.plot(w, f_c, ls='--', c=color, alpha=alpha)
+        ax.fill_between(w, f, f_c, color=color, alpha=alpha)
+
+    def save_figure(self, idx, extension='png', dpi=360):        
+        if self.save_fig:
+            plt.savefig(self.out_dir + str(idx) + '.'
+                        + extension, format=extension, dpi=dpi)
+        
+    def show_figure(self):
+        if self.show_fig:
+            plt.show()        
+            
+    def make_plots(self):
+        alpha = 0.3
+        for index, row in self.df.iterrows():
+                          
+            FIG = plt.figure(figsize=(16, 12))
+            ax = FIG.add_subplot(111)
+
+            self.set_fig_frame(ax)
+
+            self.plot_spectrum(ax, row['wavelength_raw'],
+                               row['flux_normalized'], 'k', alpha)
+            self.plot_spectrum(ax, row['wavelength_raw'],
+                               row['flux_smoothed'], 'k', 1.)
+                               
+            self.add_feature_shade(ax, row['wavelength_region_f6'],
+                                   row['flux_normalized_region_f6'],
+                                   row['pseudo_cont_flux_f6'], 'r', alpha)                                   
+            self.add_feature_shade(ax, row['wavelength_region_f7'],
+                                   row['flux_normalized_region_f7'],
+                                   row['pseudo_cont_flux_f7'], 'b', alpha)                                                                                         
+                            
+            plt.tight_layout()
+            self.save_figure(idx=index)
+            self.show_figure()
+            
+            del ax
+            del FIG
+        
+    
+
+
+
 
