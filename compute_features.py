@@ -296,20 +296,20 @@ class Analyse_Spectra(Utility):
                 velocity of ~ -12,000 km/s. Maybe need some improvement to also
                 consider the deepest minimum.
                 """
-                if len(potential_w) < 5:
+                if len(potential_w) <= 3:
                     rest_w = np.mean(self.MD['rest_f' + key])
                     typical_v = -12000.
                     c = const.c.to('km/s').value
                     
                     typical_w = (rest_w * np.sqrt(1. + typical_v / c) / 
-                      np.sqrt(1. + typical_v / c))
-                      
+                      np.sqrt(1. - typical_v / c))
+                                          
                     w_diff =  np.array([abs(w - typical_w) for w in potential_w])
                     w_guess = potential_w[w_diff.argmin()]
                     f_guess = potential_f[w_diff.argmin()]
                                         
                 #In noisy spectra, get the deepest minimum.
-                elif len(potential_w) > 5:
+                elif len(potential_w) > 3:
                     f_guess = min(potential_f) 
                     w_guess = potential_w[potential_f.argmin()]
                     
@@ -328,7 +328,7 @@ class Analyse_Spectra(Utility):
                     #Guess the minimum.
                     w_min, f_min = guess_minimum(copy_w_minima_window,
                                                  copy_f_minima_window)
-                                                          
+
                     #Trimming minima and maxima in feature window:
                     #Select only minima/maxima in the left (right) side of the
                     #true minimum for the blue (red) window. These are bounded
@@ -340,7 +340,7 @@ class Analyse_Spectra(Utility):
                                      
                     max_blue_condition = (w_maxima_window < w_min)
                     max_red_condition = (w_maxima_window > w_min)
-
+                                        
                     minima_window_blue_condition = (min_blue_condition
                       & (w_minima_window <= self.MD['blue_upper_f'+key])
                       & (w_minima_window >= self.MD['blue_lower_f'+key]))
@@ -376,7 +376,7 @@ class Analyse_Spectra(Utility):
                       maxima_window_red_condition]
                     f_maxima_window_red = f_maxima_window[
                       maxima_window_red_condition]    
-
+                    
                     #Select the maxima to the right and to the left of the
                     #Minimum determined above.
                     try:
@@ -408,49 +408,61 @@ class Analyse_Spectra(Utility):
 
             #Once the true minimum is known, check whether the nearest maxima
             #are just shoulders.
-            if not np.isnan(w_max_blue) and len(w_maxima_window_blue)>1:   
+            if not np.isnan(w_max_blue) and len(w_maxima_window_blue) > 1:   
                 
                 #Compute wavelength separation between minima to the maximum.
                 d_minima_window_blue = w_minima_window_blue - w_max_blue
                 
+                #Compute relative flux
+                r_minima_window_blue = np.asarray(
+                  [abs(f_mwb - f_max_blue) / f_max_blue for
+                  f_mwb in f_minima_window_blue])
+                
                 #Select only the minima which are bluer than the maximum
-                #and within the separation window.
-                d_minima_window_blue = d_minima_window_blue[
-                  (d_minima_window_blue < 0.)
-                  & (d_minima_window_blue > -1.*self.sep)]
+                #and within the separation window or within 5% of the maximum
+                #flux. This avoids tricky situations where there ahppens to be
+                #a shoulder from a neighbor feature at the same level. 
+                d_minima_window_blue = np.asarray(
+                  [d for (d, r) in zip(d_minima_window_blue, r_minima_window_blue)
+                  if d < 0. and ((d > -1. * self.sep) or (r <= 0.05))])
                   
-                #Take the bluest of the minima and check
-                #if there is another maximum bluer than that.
-                if len(d_minima_window_blue)>0:
-                    condition = (w_maxima_window_blue < w_max_blue
-                                 + min(d_minima_window_blue))                  
+                #If there are shoulders, select the largest peak
+                #that is bluer than the shoulder as the new maximum.
+                if len(d_minima_window_blue) > 0:
+                    condition = (w_maxima_window_blue < w_max_blue)                  
                     w_maxima_window_blue = w_maxima_window_blue[condition]
                     f_maxima_window_blue = f_maxima_window_blue[condition]
                     if len(w_maxima_window_blue) >= 1:
-                        w_max_blue = w_maxima_window_blue[-1]
-                        f_max_blue = f_maxima_window_blue[-1]
+                        f_max_blue = max(f_maxima_window_blue)
+                        w_max_blue = w_maxima_window_blue[f_maxima_window_blue.argmax()]
 
-            if not np.isnan(w_max_red) and len(w_maxima_window_red)>1: 
+            if not np.isnan(w_max_red) and len(w_maxima_window_red) > 1: 
                 
                 #Compute wavelength separation between minima to the maximum.
                 d_minima_window_red = w_minima_window_red - w_max_red  
+
+                #Compute relative flux
+                r_minima_window_red = np.asarray(
+                  [abs(f_mwr - f_max_red) / f_max_red for
+                  f_mwr in f_minima_window_red])
                
-                #Select only the minima which are redder than the maximum
-                #and within the separation window.
-                d_minima_window_red = d_minima_window_red[
-                  (d_minima_window_red > 0.)
-                  & (d_minima_window_red < 1.*self.sep)]
+                #Select only the minima which are bluer than the maximum
+                #and within the separation window or within 5% of the maximum
+                #flux. This avoids tricky situations where there ahppens to be
+                #a shoulder from a neighbor feature at the same level. 
+                d_minima_window_red = np.asarray(
+                  [d for (d, r) in zip(d_minima_window_red, r_minima_window_red)
+                  if d > 0. and ((d < 1. * self.sep) or (r <= 0.05))])
               
-                #Take the reddest of the minima and check
-                #if there is another maximum bluer than that.
-                if len(d_minima_window_red)>0:
-                    condition = (w_maxima_window_red > w_max_red
-                                 + max(d_minima_window_red))
+                #If there are shoulders, select the largest peak
+                #that is redr than the shoulder as the new maximum.
+                if len(d_minima_window_red) > 0:
+                    condition = (w_maxima_window_red > w_max_red)                  
                     w_maxima_window_red = w_maxima_window_red[condition]
                     f_maxima_window_red = f_maxima_window_red[condition]
                     if len(w_maxima_window_red) >= 1:
-                        w_max_red = w_maxima_window_red[0]
-                        f_max_red = f_maxima_window_red[0]
+                        f_max_red = max(f_maxima_window_red)
+                        w_max_red = w_maxima_window_red[f_maxima_window_red.argmax()]
                                         
             return float(w_min), float(f_min), float(w_max_blue), \
                    float(f_max_blue), float(w_max_red), float(f_max_red)
@@ -856,7 +868,6 @@ class Compute_Uncertainty(Utility):
             return A*np.exp(-(x-mu)**2./(2.*sigma**2.))
 
         if not np.isnan(quantity).all():
-          
             flag = False
             
             quantity = np.asarray(quantity)
@@ -882,20 +893,19 @@ class Compute_Uncertainty(Utility):
                 gaussian_mean = popt[1]
                 
                 unc = abs(popt[2])
-                #If uncertainty is smaller than bin_size, something is likely
-                #wrong, so the object is flagged and the uncertainty becomes
-                #the bin_size.
+                #If uncertainty is smaller than bin_size, the object is not 
+                #not flagged, but the uncertainty becomes the bin_size.
                 if unc < bin_size:
                     unc = bin_size
-                    flag = True  
 
                 #If the measured feature is nan, then assess whether the
                 #feature value is relatively close to the median of the MC
                 #realisations. If the difference is larger than the estimated
                 #uncertainty or the bin size, then flag this object --
                 #meaning that the measured value might not be reliable.   
+
                 if not np.isnan(quantity_value):
-                    if abs(quantity_value - quantity_median) > max([unc,bin_size]): 
+                    if abs(quantity_value - quantity_median) > unc:
                         flag = True  
                 
                 #Conversely, if the originally measured feature was nan, but
@@ -1040,13 +1050,26 @@ class Plot_Spectra(object):
         ax.plot(w, f, color=color, alpha=0.5)                
 
     def add_feature_shade(self, ax, w, f, f_c, color, alpha):
-        ax.plot(w, f_c, ls='--', c=color, alpha=alpha)
-        ax.fill_between(w, f, f_c, color=color, alpha=alpha)
+        try:
+            ax.plot(w, f_c, ls='--', c=color, alpha=alpha)
+            ax.fill_between(w, f, f_c, color=color, alpha=alpha)
+        except:
+            pass    
 
-    def save_figure(self, idx, extension='png', dpi=360):        
-        if self.save_fig:
-            plt.savefig(self.out_dir + str(idx) + '.'
-                        + extension, format=extension, dpi=dpi)
+    def add_boundaries(self, ax, w_max_blue, f_max_blue, w_max_red,
+                       f_max_red, w_min, f_min, color):
+        
+        ax.plot(w_max_blue, f_max_blue, color=color, marker='+', markersize=12.)
+        ax.plot(w_max_red, f_max_red, color=color, marker='+', markersize=12.)
+        ax.plot(w_min, f_min, color=color, marker='x', markersize=12.)
+
+    def save_figure(self, idx, extension='png', dpi=360):
+        try:
+            if self.save_fig:
+                plt.savefig(self.out_dir + str(idx) + '.'
+                            + extension, format=extension, dpi=dpi)       
+        except:
+            pass                              
         
     def show_figure(self):
         if self.show_fig:
@@ -1054,10 +1077,10 @@ class Plot_Spectra(object):
             
     def make_plots(self):
         alpha = 0.3
+        fig = plt.figure(figsize=(16, 12))
         for index, row in self.df.iterrows():
                           
-            FIG = plt.figure(figsize=(16, 12))
-            ax = FIG.add_subplot(111)
+            ax = fig.add_subplot(111)
 
             self.set_fig_frame(ax)
 
@@ -1073,14 +1096,20 @@ class Plot_Spectra(object):
                                    row['flux_normalized_region_f7'],
                                    row['pseudo_cont_flux_f7'], 'b', alpha)                                                                                         
                             
+            self.add_boundaries(ax, row['wavelength_maxima_blue_f6'], 
+              row['flux_maxima_blue_f6'], row['wavelength_maxima_red_f6'], 
+              row['flux_maxima_red_f6'], row['wavelength_minima_f6'], 
+              row['flux_minima_f6'], color='r')
+            self.add_boundaries(ax, row['wavelength_maxima_blue_f7'], 
+              row['flux_maxima_blue_f7'], row['wavelength_maxima_red_f7'], 
+              row['flux_maxima_red_f7'], row['wavelength_minima_f7'], 
+              row['flux_minima_f7'], color='b')
+            
             plt.tight_layout()
             self.save_figure(idx=index)
             self.show_figure()
             
-            del ax
-            del FIG
-        
-    
+            plt.cla()
 
 
 
