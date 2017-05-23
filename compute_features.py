@@ -418,7 +418,7 @@ class Analyse_Spectra(Utility):
                   [abs(f_mwb - f_max_blue) / f_max_blue for
                   f_mwb in f_minima_window_blue])
                 
-                #Select only the minima which are bluer than the maximum
+                #ASelect only the minima which are bluer than the maximum
                 #and within the separation window or within 5% of the maximum
                 #flux. This avoids tricky situations where there ahppens to be
                 #a shoulder from a neighbor feature at the same level. 
