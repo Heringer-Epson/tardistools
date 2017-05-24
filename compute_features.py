@@ -116,7 +116,7 @@ class Analyse_Spectra(Utility):
                
         self.MD['rest_f6'] = [5971.85]
         self.MD['blue_lower_f6'], self.MD['blue_upper_f6'] = 5400., 5700.
-        self.MD['red_lower_f6'], self.MD['red_upper_f6'] = 5750., 6000.
+        self.MD['red_lower_f6'], self.MD['red_upper_f6'] = 5750., 6010. #6000. originally
      
         self.MD['rest_f7'] = [6355.21]
         self.MD['blue_lower_f7'], self.MD['blue_upper_f7'] = 5750., 6060.
@@ -289,7 +289,7 @@ class Analyse_Spectra(Utility):
               in idx_maxima_window])
             f_maxima_window = np.asarray([f_window[idx] for idx
               in idx_maxima_window])
-            
+                        
             def guess_minimum(potential_w, potential_f):
                 """ In low noise spectra, get minimum at wavelength where the
                 line would have been shifted due to a typical ejecta
@@ -389,7 +389,7 @@ class Analyse_Spectra(Utility):
                     except:
                         w_max_blue, f_max_blue = np.nan, np.nan
                         w_max_red, f_max_red = np.nan, np.nan                            
-
+                    
                     #If there is no maximum to either the left or to the right,
                     #remove the minimum from the list of minima and
                     #try the next deepest minimum.
@@ -413,23 +413,35 @@ class Analyse_Spectra(Utility):
                 #Compute wavelength separation between minima to the maximum.
                 d_minima_window_blue = w_minima_window_blue - w_max_blue
                 
-                #Compute relative flux
-                r_minima_window_blue = np.asarray(
-                  [abs(f_mwb - f_max_blue) / f_max_blue for
-                  f_mwb in f_minima_window_blue])
-                
+                #For each minimum, compute the largest relative fluxe
+                #in the window between current maximum and the minimum.
+                #This will assess whether the spectra is flat in this region.
+                r_minima_window_blue = []
+                for w_mwb in w_minima_window_blue:
+                    try:
+                        condition = ((wavelength <= w_max_blue)
+                                     & (wavelength >= w_mwb))
+                        
+                        r_max = max([abs(f_step - f_max_blue) / f_max_blue for 
+                                    f_step in flux[condition]])
+                        
+                        r_minima_window_blue.append(r_max)
+                    except:
+                        r_minima_window_blue.append(np.nan)
+                                        
                 #ASelect only the minima which are bluer than the maximum
                 #and within the separation window or within 5% of the maximum
                 #flux. This avoids tricky situations where there ahppens to be
                 #a shoulder from a neighbor feature at the same level. 
+                
                 d_minima_window_blue = np.asarray(
                   [d for (d, r) in zip(d_minima_window_blue, r_minima_window_blue)
-                  if d < 0. and ((d > -1. * self.sep) or (r <= 0.05))])
+                  if d < 0. and ((d > -1. * self.sep) or (r <= 0.01))])                
                   
                 #If there are shoulders, select the largest peak
                 #that is bluer than the shoulder as the new maximum.
                 if len(d_minima_window_blue) > 0:
-                    condition = (w_maxima_window_blue < w_max_blue)                  
+                    condition = (w_maxima_window_blue <= w_max_blue)                  
                     w_maxima_window_blue = w_maxima_window_blue[condition]
                     f_maxima_window_blue = f_maxima_window_blue[condition]
                     if len(w_maxima_window_blue) >= 1:
@@ -441,10 +453,22 @@ class Analyse_Spectra(Utility):
                 #Compute wavelength separation between minima to the maximum.
                 d_minima_window_red = w_minima_window_red - w_max_red  
 
-                #Compute relative flux
-                r_minima_window_red = np.asarray(
-                  [abs(f_mwr - f_max_red) / f_max_red for
-                  f_mwr in f_minima_window_red])
+                #For each minimum, compute the largest relative fluxe
+                #in the window between current maximum and the minimum.
+                #This will assess whether the spectra is flat in this region.
+                r_minima_window_red = []
+                for w_mwr in w_minima_window_red:
+                    try:
+                        condition = ((wavelength >= w_max_red)
+                                     & (wavelength <= w_mwr))
+                        
+                        r_max = max([abs(f_step - f_max_red) / f_max_red for 
+                                    f_step in flux[condition]])
+                        
+                        r_minima_window_red.append(r_max)
+                    except:
+                        r_minima_window_red.append(np.nan)
+
                
                 #Select only the minima which are bluer than the maximum
                 #and within the separation window or within 5% of the maximum
@@ -452,12 +476,12 @@ class Analyse_Spectra(Utility):
                 #a shoulder from a neighbor feature at the same level. 
                 d_minima_window_red = np.asarray(
                   [d for (d, r) in zip(d_minima_window_red, r_minima_window_red)
-                  if d > 0. and ((d < 1. * self.sep) or (r <= 0.05))])
+                  if d > 0. and ((d < 1. * self.sep) or (r <= 0.01))])
               
                 #If there are shoulders, select the largest peak
                 #that is redr than the shoulder as the new maximum.
                 if len(d_minima_window_red) > 0:
-                    condition = (w_maxima_window_red > w_max_red)                  
+                    condition = (w_maxima_window_red >= w_max_red)                  
                     w_maxima_window_red = w_maxima_window_red[condition]
                     f_maxima_window_red = f_maxima_window_red[condition]
                     if len(w_maxima_window_red) >= 1:
