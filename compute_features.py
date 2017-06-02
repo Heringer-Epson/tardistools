@@ -12,6 +12,7 @@ import matplotlib as mpl
 from matplotlib.ticker import MultipleLocator
 import scipy
 
+from PyAstronomy import pyasl
 from scipy.optimize import curve_fit, OptimizeWarning
 from astropy import constants as const
 
@@ -77,11 +78,12 @@ class Analyse_Spectra(Utility):
         Input dataframe where spectral features have been added as new columns. 
     """
 
-    def __init__(self, dataframe, smoothing_mode='savgol', smoothing_window=21,
-                 deredshift_and_normalize=True, verbose=False):
+    def __init__(self, dataframe, extinction=0., smoothing_mode='savgol',
+                 smoothing_window=21, deredshift_and_normalize=True, verbose=False):
         
         Utility.__init__(self)
 
+        self.extinction = extinction
         self.time = time.time()   
         self.DF = dataframe
         self.smoothing_mode = smoothing_mode
@@ -116,7 +118,7 @@ class Analyse_Spectra(Utility):
                
         self.MD['rest_f6'] = [5971.85]
         self.MD['blue_lower_f6'], self.MD['blue_upper_f6'] = 5400., 5700.
-        self.MD['red_lower_f6'], self.MD['red_upper_f6'] = 5750., 6010. #6000. originally
+        self.MD['red_lower_f6'], self.MD['red_upper_f6'] = 5750., 6020. #6000. originally
      
         self.MD['rest_f7'] = [6355.21]
         self.MD['blue_lower_f7'], self.MD['blue_upper_f7'] = 5750., 6060.
@@ -153,7 +155,7 @@ class Analyse_Spectra(Utility):
             print ('  -RAN: De-redshifting the spectra. FINISHED IN ('
                    +str(format(time.time()-start_time, '.1f'))+'s)')
 
-    def normalize_flux(self):
+    def normalize_flux_and_correct_extinction(self):
         """ Normalize the flux to relative units so that methods such as
         wavelet smoothing can be applied if requested.
         """ 
@@ -162,25 +164,27 @@ class Analyse_Spectra(Utility):
         def get_normalized_flux(wavelength, flux):          
             aux_wavelength = np.asarray(wavelength).astype(np.float)
             aux_flux = np.asarray(flux).astype(np.float)                    
+
+            #Redden/Un-redden the spectra.
+            aux_flux = pyasl.unred(aux_wavelength, aux_flux,
+                                   ebv=self.extinction, R_V=3.1)
             
             #Wavelength window where the mean flux is computed.
             window_condition = ((wavelength >= 4000.) & (wavelength <= 9000.))             
-            
-            flux_window = aux_flux[window_condition]
+            flux_window = aux_flux[window_condition]           
             normalization_factor = np.mean(flux_window)     
-            #normalization_factor = max(aux_flux)     
-            
             aux_flux = aux_flux / normalization_factor
+
             aux_flux = list(aux_flux)
             return aux_flux
        
         self.DF['flux_normalized'] = self.DF.apply(
           lambda row: get_normalized_flux(row['wavelength_raw'],
         row['flux_raw']), axis=1)   
-       
+                
         if self.verbose:
             print ('  -RAN: Normalizing flux to maximum. FINISHED IN ('
-              +str(format(time.time()-start_time, '.1f'))+'s)')
+              +str(format(time.time()-start_time, '.1f'))+'s)')        
 
     def smooth_spectrum(self):
         """  Smooth the spectrum using either the savgol-golay.
@@ -289,14 +293,14 @@ class Analyse_Spectra(Utility):
               in idx_maxima_window])
             f_maxima_window = np.asarray([f_window[idx] for idx
               in idx_maxima_window])
-                        
+                                    
             def guess_minimum(potential_w, potential_f):
                 """ In low noise spectra, get minimum at wavelength where the
                 line would have been shifted due to a typical ejecta
                 velocity of ~ -12,000 km/s. Maybe need some improvement to also
                 consider the deepest minimum.
                 """
-                if len(potential_w) <= 3:
+                if len(potential_w) <= 4:
                     rest_w = np.mean(self.MD['rest_f' + key])
                     typical_v = -12000.
                     c = const.c.to('km/s').value
@@ -309,7 +313,7 @@ class Analyse_Spectra(Utility):
                     f_guess = potential_f[w_diff.argmin()]
                                         
                 #In noisy spectra, get the deepest minimum.
-                elif len(potential_w) > 3:
+                elif len(potential_w) > 4:
                     f_guess = min(potential_f) 
                     w_guess = potential_w[potential_f.argmin()]
                     
@@ -726,7 +730,7 @@ class Analyse_Spectra(Utility):
     def run_analysis(self):
         if self.deredshift_and_normalize:
             self.deredshift_spectrum()
-            self.normalize_flux()    
+            self.normalize_flux_and_correct_extinction()    
         self.smooth_spectrum()  
         self.find_zeros_in_features()
         self.grab_feature_regions()
