@@ -117,8 +117,8 @@ class Analyse_Spectra(Utility):
         self.MD['red_lower_f5'], self.MD['red_upper_f5'] = 5450., 5700.
                
         self.MD['rest_f6'] = [5971.85]
-        self.MD['blue_lower_f6'], self.MD['blue_upper_f6'] = 5400., 5700.
-        self.MD['red_lower_f6'], self.MD['red_upper_f6'] = 5750., 6020. #6000. originally
+        self.MD['blue_lower_f6'], self.MD['blue_upper_f6'] = 5400., 5740. #5700 originally
+        self.MD['red_lower_f6'], self.MD['red_upper_f6'] = 5750., 6040. #6000. originally
      
         self.MD['rest_f7'] = [6355.21]
         self.MD['blue_lower_f7'], self.MD['blue_upper_f7'] = 5750., 6060.
@@ -302,7 +302,7 @@ class Analyse_Spectra(Utility):
                 """
                 if len(potential_w) <= 4:
                     rest_w = np.mean(self.MD['rest_f' + key])
-                    typical_v = -12000.
+                    typical_v = -11000.
                     c = const.c.to('km/s').value
                     
                     typical_w = (rest_w * np.sqrt(1. + typical_v / c) / 
@@ -434,13 +434,13 @@ class Analyse_Spectra(Utility):
                         r_minima_window_blue.append(np.nan)
                                         
                 #ASelect only the minima which are bluer than the maximum
-                #and within the separation window or within 5% of the maximum
+                #and within the separation window or within 0.5% of the maximum
                 #flux. This avoids tricky situations where there ahppens to be
                 #a shoulder from a neighbor feature at the same level. 
                 
                 d_minima_window_blue = np.asarray(
                   [d for (d, r) in zip(d_minima_window_blue, r_minima_window_blue)
-                  if d < 0. and ((d > -1. * self.sep) or (r <= 0.01))])                
+                  if d < 0. and ((d > -1. * self.sep) or (r <= 0.005))])                
                   
                 #If there are shoulders, select the largest peak
                 #that is bluer than the shoulder as the new maximum.
@@ -475,12 +475,12 @@ class Analyse_Spectra(Utility):
 
                
                 #Select only the minima which are bluer than the maximum
-                #and within the separation window or within 5% of the maximum
+                #and within the separation window or within 0.5% of the maximum
                 #flux. This avoids tricky situations where there ahppens to be
                 #a shoulder from a neighbor feature at the same level. 
                 d_minima_window_red = np.asarray(
                   [d for (d, r) in zip(d_minima_window_red, r_minima_window_red)
-                  if d > 0. and ((d < 1. * self.sep) or (r <= 0.01))])
+                  if d > 0. and ((d < 1. * self.sep) or (r <= 0.005))])
               
                 #If there are shoulders, select the largest peak
                 #that is redr than the shoulder as the new maximum.
@@ -584,7 +584,7 @@ class Analyse_Spectra(Utility):
 
                 #Check whether the continuum is always higher than the
                 #**smoothed** flux and the array contains more than one element.
-                boolean_check = [(f_s-f_c) / f_c > 0.10 for (f_c, f_s)
+                boolean_check = [(f_s-f_c) / f_c > 0.05 for (f_c, f_s)
                                  in zip(pseudo_flux, f_smoothed)]
                        
                 if True in boolean_check or len(pseudo_flux) < 1:
