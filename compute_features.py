@@ -117,8 +117,8 @@ class Analyse_Spectra(Utility):
         self.MD['red_lower_f5'], self.MD['red_upper_f5'] = 5450., 5700.
                
         self.MD['rest_f6'] = [5971.85]
-        self.MD['blue_lower_f6'], self.MD['blue_upper_f6'] = 5400., 5740. #5700 originally
-        self.MD['red_lower_f6'], self.MD['red_upper_f6'] = 5750., 6040. #6000. originally
+        self.MD['blue_lower_f6'], self.MD['blue_upper_f6'] = 5400., 5750. #5700 originally
+        self.MD['red_lower_f6'], self.MD['red_upper_f6'] = 5750., 6060. #6000. originally
      
         self.MD['rest_f7'] = [6355.21]
         self.MD['blue_lower_f7'], self.MD['blue_upper_f7'] = 5750., 6060.
@@ -440,7 +440,7 @@ class Analyse_Spectra(Utility):
                 
                 d_minima_window_blue = np.asarray(
                   [d for (d, r) in zip(d_minima_window_blue, r_minima_window_blue)
-                  if d < 0. and ((d > -1. * self.sep) or (r <= 0.005))])                
+                  if d < 0. and ((d > -1. * self.sep) or (r <= 0.01))])                
                   
                 #If there are shoulders, select the largest peak
                 #that is bluer than the shoulder as the new maximum.
@@ -480,7 +480,7 @@ class Analyse_Spectra(Utility):
                 #a shoulder from a neighbor feature at the same level. 
                 d_minima_window_red = np.asarray(
                   [d for (d, r) in zip(d_minima_window_red, r_minima_window_red)
-                  if d > 0. and ((d < 1. * self.sep) or (r <= 0.005))])
+                  if d > 0. and ((d < 1. * self.sep) or (r <= 0.01))])
               
                 #If there are shoulders, select the largest peak
                 #that is redr than the shoulder as the new maximum.
@@ -584,7 +584,12 @@ class Analyse_Spectra(Utility):
 
                 #Check whether the continuum is always higher than the
                 #**smoothed** flux and the array contains more than one element.
-                boolean_check = [(f_s-f_c) / f_c > 0.05 for (f_c, f_s)
+                A = max(f_smoothed) - min(f_smoothed)
+                
+                
+                #boolean_check = [(f_s-f_c) / f_s > 0.10 for (f_c, f_s)
+                #                 in zip(pseudo_flux, f_smoothed)]
+                boolean_check = [f_s - f_c > 0.15 * A for (f_c, f_s)
                                  in zip(pseudo_flux, f_smoothed)]
                        
                 if True in boolean_check or len(pseudo_flux) < 1:
@@ -1105,9 +1110,9 @@ class Plot_Spectra(object):
             
     def make_plots(self):
         alpha = 0.3
-        fig = plt.figure(figsize=(16, 12))
         for index, row in self.df.iterrows():
                           
+            fig = plt.figure(figsize=(16, 12))
             ax = fig.add_subplot(111)
 
             self.set_fig_frame(ax)
@@ -1119,25 +1124,25 @@ class Plot_Spectra(object):
                                
             self.add_feature_shade(ax, row['wavelength_region_f6'],
                                    row['flux_normalized_region_f6'],
-                                   row['pseudo_cont_flux_f6'], 'r', alpha)                                   
+                                   row['pseudo_cont_flux_f6'], 'b', alpha)                                   
             self.add_feature_shade(ax, row['wavelength_region_f7'],
                                    row['flux_normalized_region_f7'],
-                                   row['pseudo_cont_flux_f7'], 'b', alpha)                                                                                         
+                                   row['pseudo_cont_flux_f7'], 'r', alpha)                                                                                         
                             
             self.add_boundaries(ax, row['wavelength_maxima_blue_f6'], 
               row['flux_maxima_blue_f6'], row['wavelength_maxima_red_f6'], 
               row['flux_maxima_red_f6'], row['wavelength_minima_f6'], 
-              row['flux_minima_f6'], color='r')
+              row['flux_minima_f6'], color='b')
             self.add_boundaries(ax, row['wavelength_maxima_blue_f7'], 
               row['flux_maxima_blue_f7'], row['wavelength_maxima_red_f7'], 
               row['flux_maxima_red_f7'], row['wavelength_minima_f7'], 
-              row['flux_minima_f7'], color='b')
+              row['flux_minima_f7'], color='r')
             
             plt.tight_layout()
             self.save_figure(idx=index)
             self.show_figure()
             
-            plt.cla()
+            plt.close(fig)
 
 
 
