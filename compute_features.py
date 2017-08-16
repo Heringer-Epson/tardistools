@@ -33,7 +33,6 @@ class Utility(object):
     """
     
     def __init__(self, sep=20.):
-        self.utility = True
         self.sep = sep
         self.keys = ['6', '7']
         self.keys_to_fit = ['6', '7']
@@ -110,53 +109,58 @@ class Analyse_Spectra(Utility):
         Input dataframe where spectral features have been added as new columns. 
     """
 
-    def __init__(self, wavelength, flux, redshift=0., extinction=0.,
-                 D={}, smoothing_window=21, deredshift_and_normalize=True,
+    def __init__(self, wavelength, flux, redshift=0., extinction=0., D={},
+                 smoothing_window=21, deredshift_and_normalize=True,
                  verbose=False):
         
         Utility.__init__(self)
 
+        self.wavelength = wavelength
+        self.flux = flux
+        self.redshift = redshift
+        self.extinction = extinction
         self.D = D
-        
-        def raise_var_error(variable, keyword):
-            if (keyword in self.D.keys()
-              and not np.array_equal(variable, self.D[keyword])):            
-                sys.ValueError(
-                  'Input array passed in the wavelength keyword '
-                  + 'and in the dictionary["wavelength_raw" are not the same.')
 
-        raise_var_error(wavelength, 'wavelength_raw')
-        raise_var_error(flux, 'flux_raw')
-        raise_var_error(redshift, 'host_redshift')
-        raise_var_error(extinction, 'extinction')
-                        
-        self.D['wavelength_raw'] = wavelength
-        self.D['flux_raw'] = flux
-        self.D['host_redshift'] = redshift
-        self.D['extinction'] = extinction
-                
         self.smoothing_window = smoothing_window
         self.deredshift_and_normalize = deredshift_and_normalize
         self.verbose = verbose
+                
+    #@profile
+    def perform_checks(self):
+        
+        def check_type(var, var_name, wanted_type):
+            """Raise errors when variable don't have the required type."""
+            if not isinstance(var, wanted_type):
+                raise TypeError(
+                  'Input ' + var_name + ' must be a ' + wanted_type.__name__
+                  + ', not ' + type(var).__name__ + '.')              
+        
+        #Check whether variable types are as requeired.
+        check_type(self.wavelength, 'wavelength_raw', np.ndarray)
+        check_type(self.flux, 'flux_raw', np.ndarray)
+        check_type(self.redshift, 'host_redshift', float)
+        check_type(self.extinction, 'extinction', float)        
+        
+        #Once variables are checked to be ok, then store them in the dict.
+        self.D['wavelength_raw'] = self.wavelength
+        self.D['flux_raw'] = self.flux
+        self.D['host_redshift'] = self.redshift
+        self.D['extinction'] = self.extinction
                         
     #@profile
     def deredshift_spectrum(self):
         """Correct the wavelength for redshift. Note that the data downloaded
         from BSNIP is not in rest-wavelength."""   
-        
-        def remove_redshift(wavelength, redshift):
-            return wavelength / (1. + redshift)
-        
-        self.D['wavelength_corr'] = remove_redshift(self.D['wavelength_raw'],
-                                                     self.D['host_redshift'])           
+        self.D['wavelength_corr'] = (self.D['wavelength_raw']
+                                     / (1. + self.D['host_redshift']))                                                         
 
-    #@profile
     def normalize_flux_and_correct_extinction(self):
         """ Normalize the flux to relative units so that methods such as
         wavelet smoothing can be applied if requested. Note that this cannot
         be further optimized as pyasl seems not work with series.
         """ 
         
+        #@profile
         def get_normalized_flux(w, f, e):          
             #Redden/Un-redden the spectra.
             aux_flux = pyasl.unred(w, f, ebv=e, R_V=3.1)
@@ -166,7 +170,6 @@ class Analyse_Spectra(Utility):
             flux_window = aux_flux[window_condition]           
             normalization_factor = np.mean(flux_window)     
             aux_flux /= normalization_factor
-
             return aux_flux
        
         self.D['flux_normalized'] = get_normalized_flux(
@@ -177,8 +180,6 @@ class Analyse_Spectra(Utility):
         """Smooth the spectrum using either the savgol-golay.
         Other options not implemented at the moment.
         """                                 
-        
-
         
         def savitzky_golay(y, window_size, order, deriv=0, rate=1):     
             """This was taken from 
@@ -207,19 +208,22 @@ class Analyse_Spectra(Utility):
             y = np.concatenate((firstvals, y, lastvals))
             return np.convolve( m[::-1], y, mode='valid')        
         
+        #Smooth flux
         self.D['flux_smoothed'] = savitzky_golay(
           self.D['flux_normalized'], self.smoothing_window, 3)
 
+        #Smooth the derivative of the smoothed flux.
         def smooth_derivative(wavelength, f_smoothed):
             dw = np.diff(wavelength)
             df = np.diff(f_smoothed)
-            der = np.append(np.array([np.nan]), savitzky_golay(
-              np.divide(df, dw), self.smoothing_window, 3))
-            return der                
+            der = savitzky_golay(np.divide(df, dw), self.smoothing_window, 3)         
+            return np.append(np.array([np.nan]), der)
         
         self.D['derivative'] = smooth_derivative(self.D['wavelength_corr'],
                                                  self.D['flux_smoothed'])
         
+        #This comment chunck perfomers the exact same calculation, but
+        #is 20% slower. However it does not require reproducing the scipy code.
         '''
         self.D['flux_smoothed'] = savgol_filter(
           self.D['flux_normalized'], self.smoothing_window, 3)
@@ -393,7 +397,7 @@ class Analyse_Spectra(Utility):
                 
                 #Compute wavelength separation between minima to the maximum.
                 d_minima_window_blue = w_minima_window_blue - w_max_blue
-                
+                                
                 #For each minimum, compute the largest relative fluxe
                 #in the window between current maximum and the minimum.
                 #This will assess whether the spectra is flat in this region.
@@ -413,12 +417,11 @@ class Analyse_Spectra(Utility):
                 #ASelect only the minima which are bluer than the maximum
                 #and within the separation window or within 0.5% of the maximum
                 #flux. This avoids tricky situations where there ahppens to be
-                #a shoulder from a neighbor feature at the same level. 
-                
+                #a shoulder from a neighbor feature at the same level.                 
                 d_minima_window_blue = np.asarray(
                   [d for (d, r) in zip(d_minima_window_blue, r_minima_window_blue)
                   if d < 0. and ((d > -1. * self.sep) or (r <= 0.01))])                
-                  
+                                  
                 #If there are shoulders, select the largest peak
                 #that is bluer than the shoulder as the new maximum.
                 if len(d_minima_window_blue) > 0:
@@ -428,7 +431,7 @@ class Analyse_Spectra(Utility):
                     if len(w_maxima_window_blue) >= 1:
                         f_max_blue = max(f_maxima_window_blue)
                         w_max_blue = w_maxima_window_blue[f_maxima_window_blue.argmax()]
-
+            
             if not np.isnan(w_max_red) and len(w_maxima_window_red) > 1: 
                 
                 #Compute wavelength separation between minima to the maximum.
@@ -468,14 +471,13 @@ class Analyse_Spectra(Utility):
                     if len(w_maxima_window_red) >= 1:
                         f_max_red = max(f_maxima_window_red)
                         w_max_red = w_maxima_window_red[f_maxima_window_red.argmax()]
-                                        
+
             return float(w_min), float(f_min), float(w_max_blue), \
                    float(f_max_blue), float(w_max_red), float(f_max_red)
 
         for key in self.keys:
-            
             v1, v2, v3, v4, v5, v6 = get_zeros(
-              self.D['wavelength_raw'], self.D['flux_smoothed'],
+              self.D['wavelength_corr'], self.D['flux_smoothed'],
               self.D['derivative'], key)
             
             self.D['wavelength_minima_f' + key] = v1
@@ -484,7 +486,6 @@ class Analyse_Spectra(Utility):
             self.D['flux_maxima_blue_f' + key] = v4
             self.D['wavelength_maxima_red_f' + key] = v5
             self.D['flux_maxima_red_f' + key] = v6            
-        
 
     #@profile    
     def grab_feature_regions(self):
@@ -494,7 +495,7 @@ class Analyse_Spectra(Utility):
     
         def isolate_region(wavelength, flux_normalized, flux_smoothed,
                            blue_boundary, red_boundary):       
-                                        
+                                                                   
             if not np.isnan(blue_boundary) and not np.isnan(red_boundary): 
                 
                 region_condition = ((wavelength >= blue_boundary)
@@ -505,9 +506,9 @@ class Analyse_Spectra(Utility):
                 flux_smoothed_region = flux_smoothed[region_condition]           
                 
             else:
-                wavelength_region = np.nan
-                flux_normalized_region = np.nan
-                flux_smoothed_region = np.nan
+                wavelength_region = np.array([np.nan])
+                flux_normalized_region = np.array([np.nan])
+                flux_smoothed_region = np.array([np.nan])
            
             return wavelength_region, flux_normalized_region, \
                    flux_smoothed_region
@@ -533,7 +534,7 @@ class Analyse_Spectra(Utility):
         """         
         def get_psedo_continuum_flux(w, x1, y1, x2, y2, f_smoothed):
            
-            try:    
+            if len(f_smoothed) > 1:    
                 slope = (y2 - y1) / (x2 - x1)
                 intercept = y1 - slope * x1
              
@@ -548,11 +549,11 @@ class Analyse_Spectra(Utility):
                                  * (max(f_smoothed) - min(f_smoothed)))
                             
                 if True in boolean_check or len(boolean_check) < 1:
-                    pseudo_flux = np.nan
+                    pseudo_flux = np.array([np.nan])
 
-            except:
-                pseudo_flux = np.nan
-
+            else:
+                pseudo_flux = np.array([np.nan])
+            
             return pseudo_flux                                          
         
         for key in self.keys:
@@ -570,13 +571,12 @@ class Analyse_Spectra(Utility):
         """ Compute the pEW of features.
         """
         def get_pEW(wavelength_region, flux_region, pseudo_flux):           
-            if not np.isnan(pseudo_flux).any():
+            if len(pseudo_flux) > 1:
                 pEW = sum(np.multiply(
                   np.diff(wavelength_region),
                   np.divide(pseudo_flux[0:-1] - flux_region[0:-1], pseudo_flux[0:-1])))
             else:
                 pEW = np.nan
-            
             return pEW
 
         for key in self.keys:
@@ -600,14 +600,12 @@ class Analyse_Spectra(Utility):
 
         #@profile
         def get_smoothed_velocity(wavelength_region, flux_region,
-                                  pseudo_cont_flux, rest_wavelength):
+                                  pseudo_flux, rest_wavelength):
                                       
-            try:
-                
+            if len(pseudo_flux) > 1:                
                 flux_at_min = min(flux_region)
-
                 wavelength_at_min = wavelength_region[flux_region.argmin()]
-                pseudo_cont_at_min = pseudo_cont_flux[flux_region.argmin()] 
+                pseudo_cont_at_min = pseudo_flux[flux_region.argmin()] 
                 
                 wavelength_par = wavelength_region[
                   (wavelength_region >= wavelength_at_min - self.sep)
@@ -633,7 +631,7 @@ class Analyse_Spectra(Utility):
                 if popt[0] < 0. or velocity > 0. or velocity < -30000.:         
                     velocity = np.nan                    
                     
-            except:                 
+            else:                 
                 wavelength_par_min, flux_par_min = np.nan, np.nan
                 velocity, depth = np.nan, np.nan            
             
@@ -644,7 +642,7 @@ class Analyse_Spectra(Utility):
             a1, a2, a3, a4 = get_smoothed_velocity(
               self.D['wavelength_region_f' + key],
               self.D['flux_normalized_region_f' + key],
-              self.D['pseudo_cont_flux_f'+key],
+              self.D['pseudo_cont_flux_f' + key],
               self.MD['rest_f' + key])
               
             self.D['wavelength_at_min_f' + key] = a1
@@ -659,13 +657,13 @@ class Analyse_Spectra(Utility):
         #'if' condition is useful when producing mock spectra to compute the
         #uncertainty -- it prevents repeating the calculation to normalize and
         #de-redshift the spectrum.
+        self.perform_checks()
         if self.deredshift_and_normalize:
             self.deredshift_spectrum()
             self.normalize_flux_and_correct_extinction()    
         else:
             self.D['wavelength_corr'] = self.D['wavelength_raw'] 
             self.D['flux_normalized'] = self.D['flux_raw'] 
-        
         self.smooth_spectrum()  
         self.find_zeros_in_features()
         self.grab_feature_regions()
@@ -673,7 +671,6 @@ class Analyse_Spectra(Utility):
         self.compute_pEW()
         self.compute_smoothed_velocity_and_depth()
         
-        #print 'result', self.D['pEW_f7']
         return self.D  
 
 class Compute_Uncertainty(Utility):
@@ -697,9 +694,6 @@ class Compute_Uncertainty(Utility):
     N_MC_runs : ~float
         Number of spectra with noise artificially added for the MC run.   
 
-    verbose : ~boolean
-        Flag to whether or not print extra information. 
-
     Notes
     -----
     1) The uncertainties estimated using the MC combined with noise estimation
@@ -715,18 +709,13 @@ class Compute_Uncertainty(Utility):
         Input dataframe where spectral features have been added as new columns. 
     """
 
-    def __init__(self, D, smoothing_window=21, N_MC_runs=3000, verbose=False):
-        
-        self.time = time.time()
-        
-        print '\n*STARTING CALCULATION OF UNCERTAINTIES.'
-        
+    def __init__(self, D, smoothing_window=21, N_MC_runs=3000):
+                                
         Utility.__init__(self)
             
         self.D = D
         self.smoothing_window = smoothing_window
         self.N_MC_runs = N_MC_runs
-        self.verbose = verbose
 
         #Relatively small correction needed due to the fact that the smoothed
         #spectra 'follows' the noise, leading to a smaller than expected rms noise.
@@ -882,10 +871,6 @@ class Compute_Uncertainty(Utility):
                 self.D[var + '_unc_f' + key] = unc          
                 self.D[var + '_flag_f' + key] = flag          
                 self.D[var + '_f' + key] = updated_value          
-                        
-        print ("    -TOTAL TIME IN COMPUTING UNCERTAINTIES: "
-               + str(format(time.time()-self.time, '.1f'))+'s')         
-        print '    *** RUN COMPLETED SUCCESSFULLY ***\n'
 
         return self.D  
 
@@ -893,9 +878,9 @@ class Plot_Spectra(object):
     """
     """
     
-    def __init__(self, dataframe, out_dir=False, show_fig=False, save_fig=False):
-        self.D = dataframe
-        self.out_dir = out_dir
+    def __init__(self, D, outfile=False, show_fig=False, save_fig=False):
+        self.D = D
+        self.outfile = outfile
         self.show_fig = show_fig
         self.save_fig = save_fig
        
@@ -910,23 +895,20 @@ class Plot_Spectra(object):
 
     def set_fig_frame(self, ax):
         x_label = r'$\lambda \ \mathrm{[\AA}]}$'
-        y_label = r'$\mathrm{Relative \ f}_{\lambda}$'
+        y_label = r'$\mathrm{f}_{\lambda}/ \langle \mathrm{f}_{\lambda} \rangle$'
         ax.set_xlabel(x_label, fontsize=self.fs_label)
         ax.set_ylabel(y_label, fontsize=self.fs_label)
-        ax.set_xlim(2500.,10000.)
-        ax.set_ylim(0., 3.)
+        ax.set_xlim(1500.,10000.)
+        ax.set_ylim(0.,5.)
         ax.tick_params(axis='y', which='major', labelsize=self.fs_ticks, pad=8)
         ax.tick_params(axis='x', which='major', labelsize=self.fs_ticks, pad=8)
         ax.minorticks_on()
         ax.tick_params('both', length=8, width=1, which='major')
         ax.tick_params('both', length=4, width=1, which='minor')
         ax.xaxis.set_minor_locator(MultipleLocator(500.))
-        ax.xaxis.set_major_locator(MultipleLocator(2000.))
+        ax.xaxis.set_major_locator(MultipleLocator(1000.))
         ax.yaxis.set_minor_locator(MultipleLocator(0.1))
         ax.yaxis.set_major_locator(MultipleLocator(0.5))
-        
-    def plot_spectrum(self, ax, w, f, color, alpha):
-        ax.plot(w, f, color=color, alpha=0.5)                
 
     def add_feature_shade(self, ax, w, f, f_c, color, alpha):
         try:
@@ -942,54 +924,48 @@ class Plot_Spectra(object):
         ax.plot(w_max_red, f_max_red, color=color, marker='+', markersize=12.)
         ax.plot(w_min, f_min, color=color, marker='x', markersize=12.)
 
-    def save_figure(self, idx, extension='png', dpi=360):
-        try:
-            if self.save_fig:
-                plt.savefig(self.out_dir + str(idx) + '.'
-                            + extension, format=extension, dpi=dpi)       
-        except:
-            pass                              
-        
+    def save_figure(self, extension='png', dpi=360):
+        if self.save_fig:
+            extension = self.outfile.split('.')[-1]
+            plt.savefig(self.outfile, format=extension, dpi=dpi)                                   
+    
     def show_figure(self):
         if self.show_fig:
             plt.show()        
             
     def make_plots(self):
-        alpha = 0.3
-        for index, row in self.D.iterrows():
+        alpha = 0.5
                           
-            fig = plt.figure(figsize=(16, 12))
-            ax = fig.add_subplot(111)
+        fig = plt.figure(figsize=(16, 12))
+        ax = fig.add_subplot(111)
 
-            self.set_fig_frame(ax)
+        self.set_fig_frame(ax)
 
-            self.plot_spectrum(ax, row['wavelength_corr'],
-                               row['flux_normalized'], 'k', alpha)
-            self.plot_spectrum(ax, row['wavelength_corr'],
-                               row['flux_smoothed'], 'k', 1.)
-                               
-            self.add_feature_shade(ax, row['wavelength_region_f6'],
-                                   row['flux_normalized_region_f6'],
-                                   row['pseudo_cont_flux_f6'], 'b', alpha)                                   
-            self.add_feature_shade(ax, row['wavelength_region_f7'],
-                                   row['flux_normalized_region_f7'],
-                                   row['pseudo_cont_flux_f7'], 'r', alpha)                                                                                         
-                            
-            self.add_boundaries(ax, row['wavelength_maxima_blue_f6'], 
-              row['flux_maxima_blue_f6'], row['wavelength_maxima_red_f6'], 
-              row['flux_maxima_red_f6'], row['wavelength_minima_f6'], 
-              row['flux_minima_f6'], color='b')
-            self.add_boundaries(ax, row['wavelength_maxima_blue_f7'], 
-              row['flux_maxima_blue_f7'], row['wavelength_maxima_red_f7'], 
-              row['flux_maxima_red_f7'], row['wavelength_minima_f7'], 
-              row['flux_minima_f7'], color='r')
-            
-            plt.tight_layout()
-            self.save_figure(idx=index)
-            self.show_figure()
-            
-            plt.close(fig)
-
-
-
-
+        ax.plot(self.D['wavelength_corr'], self.D['flux_normalized'],
+                color='k', alpha=alpha, lw=1.)
+        
+        ax.plot(self.D['wavelength_corr'], self.D['flux_smoothed'],
+                color='k', alpha=1., lw=2.)
+                           
+        self.add_feature_shade(ax, self.D['wavelength_region_f6'],
+                               self.D['flux_normalized_region_f6'],
+                               self.D['pseudo_cont_flux_f6'], 'b', alpha)                                   
+        self.add_feature_shade(ax, self.D['wavelength_region_f7'],
+                               self.D['flux_normalized_region_f7'],
+                               self.D['pseudo_cont_flux_f7'], 'r', alpha)                                                                                         
+                        
+        self.add_boundaries(ax, self.D['wavelength_maxima_blue_f6'], 
+          self.D['flux_maxima_blue_f6'], self.D['wavelength_maxima_red_f6'], 
+          self.D['flux_maxima_red_f6'], self.D['wavelength_minima_f6'], 
+          self.D['flux_minima_f6'], color='b')
+        self.add_boundaries(ax, self.D['wavelength_maxima_blue_f7'], 
+          self.D['flux_maxima_blue_f7'], self.D['wavelength_maxima_red_f7'], 
+          self.D['flux_maxima_red_f7'], self.D['wavelength_minima_f7'], 
+          self.D['flux_minima_f7'], color='r')
+        
+        #ax.grid()
+        plt.tight_layout()
+        self.save_figure()
+        self.show_figure()
+        
+        plt.close(fig)
