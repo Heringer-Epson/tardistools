@@ -86,22 +86,29 @@ class Analyse_Spectra(Utility):
 
     Parameters
     ----------
-    dataframe : ~pandas dataframe
-        Each row of the dataframe corresponds to a spectrum and thus needs to
-        contain 'wavelength_raw' and 'flux_raw' columns.
+    wavelength : ~np.array
+        Array containing the wavelength values of the spectra.
 
-    smoothing_mode : ~str
-       'savgol' will use the Savitzky-Golay filter and is the default option.
-       Other filters are not implemented at the moment.
+    flux : ~np.array
+       Array containing the flux values of the spectra. Same length of the
+       wavelength array.
                            
+    redshift : float
+        Redshift of the host galaxy. Usually the observed spectra is corrected
+        by redshift and therefore syntethic spectra should use redshift=0.
+    
+    extinction : float
+        Extinction to be corrected. Usually the observed spectra is not
+        corrected for extinction and the syntethic spectra is reddened using
+        a negative value for extinction.
+    
     smoothing_window : ~float
         Window to be used by the Savitzky-Golay filter to smooth the spectra.
+        Usually smoothing_window=51 for observed spectra and
+        smoothing_window=21 for syntethic spectra.
         
     deredshift_and_normalize : boolean
-        Flag to whether or not de-redshift the spectrum
-    
-    verbose : ~boolean
-        Flag to whether or not print extra information.        
+        Flag to whether or not de-redshift the spectrum.     
                     
     Returns
     -------
