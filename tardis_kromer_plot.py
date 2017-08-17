@@ -63,7 +63,7 @@ class tardis_kromer_plotter(object):
        of Two Carbon-Oxygen White Dwarfs" ApjL, 2013, 778, L18
 
     """
-    def __init__(self, mdl, mode="real"):
+    def __init__(self, mdl, mode="real", scaling=1.):
 
         self._mode = None
         self.mode = mode
@@ -94,8 +94,15 @@ class tardis_kromer_plotter(object):
         self._line_out_nu = None
         self._line_out_L = None
         
-        self.list_of_el = [6, 8, 11, 12, 13, 14, 16, 20, 22, 24, 25, 26, 27, 28]
-
+        self.list_of_el = [6, 8, 11, 12, 14, 16, 20, 22, 24, 26, 27, 28]
+        #self.colors = ['crimson', 'purple', 'darkgreen', 'olive',
+        #  'sienna', 'orange', 'gold', 'yellow', 'lightblue',
+        #  'blueviolet', 'violet', 'dimgray', 'darkgray']
+        self.colors =  ['#e31a1c', '#a6cee3', '#fb9a99', '#33a02c', '#1f78b4',
+          '#b2df8a',
+          '#ff7f00', '#cab2d6',     '#fdbf6f', '#6a3d9a', '#ffff99',
+          '#b15928']
+        
         self.mdl = mdl
 
     @property
@@ -313,7 +320,7 @@ class tardis_kromer_plotter(object):
         self._line_in_L = None
         self._line_out_infos = None
         self._line_out_nu = None
-        self._line_out_L = None
+        self._line_out_L = None   
 
     def generate_plot(self, ax=None, cmap=cm.Set1, bins=None, xlim=None,
                       ylim=None, twinx=False):
@@ -350,6 +357,7 @@ class tardis_kromer_plotter(object):
         """
         self._ax = None
         self._pax = None
+        self._scaling = None
 
         self._cmap = cmap
         self._ax = ax
@@ -362,6 +370,7 @@ class tardis_kromer_plotter(object):
         else:
             self._bins = bins
 
+        self._get_scaling()
         self._axes_handling_preparation()
         self._generate_emission_part()
         self._generate_and_add_colormap()
@@ -369,9 +378,26 @@ class tardis_kromer_plotter(object):
         self._paxes_handling_preparation()
         self._generate_absorption_part()
         self._axis_handling_label_rescale()
+        plt.tight_layout()
 
         return plt.gcf()
 
+    def _get_scaling(self):
+        """Normalizes the spectra by the mean, as when computing pEW's.
+        This makes comparison between models of different luminosities more
+        straightforward. This function is a repetition of the one present in
+        the 'compute_features.py' code.
+        
+        Should the spectra also be de-reddened?
+        """
+  
+        wavelength = self.mdl.spectrum_wave.value
+        flux = self.mdl.spectrum_luminosity.value
+                
+        window_condition = ((wavelength >= 4000.) & (wavelength <= 9000.))             
+        flux_window = flux[window_condition]           
+        self._scaling = np.mean(flux_window)        
+    
     def _axes_handling_preparation(self):
         """prepare the main axes; create a new axes if none exists"""
 
@@ -392,20 +418,21 @@ class tardis_kromer_plotter(object):
 
         lams = [self.lam_noint, self.lam_escat]
         weights = [self.weights_noint, self.weights_escat]
-        #colors = ["lightskyblue", "r"]
-        colors = ["b", "dodgerblue"]
+        #colors = ["b", "dodgerblue"]
+        colors = ['dimgray', 'darkgray']
 
         for i, zi in enumerate(self.list_of_el):
             mask = self.line_out_infos.atomic_number.values == zi
             lams.append((csts.c.cgs / (self.line_out_nu[mask])).to(units.AA))
             weights.append(self.line_out_L[mask] /
                            self.mdl.time_of_simulation)
-            colors.append(self.cmap(float(i+1) / len(self.list_of_el) ))
+            #colors.append(self.cmap(float(i+1) / len(self.list_of_el) ))
+            colors.append(self.colors[i])
 
         Lnorm = 0
         for w in weights:
             Lnorm += np.sum(w)
-                
+        
         ret = self.ax.hist(lams, bins=self.bins, stacked=True,
                            histtype="stepfilled", normed=True, weights=weights)
  
@@ -414,10 +441,10 @@ class tardis_kromer_plotter(object):
                 reti.set_facecolor(colors[i])
                 reti.set_edgecolor(colors[i])
                 reti.set_linewidth(0)
-                reti.xy[:, 1] *= Lnorm
+                reti.xy[:, 1] *= Lnorm / self._scaling 
 
         self.ax.plot(self.mdl.spectrum_wave,
-                     self.mdl.spectrum_luminosity,
+                     self.mdl.spectrum_luminosity / self._scaling,
                      color="black", drawstyle="steps-post", lw=0.5)
 
     def _generate_absorption_part(self):
@@ -432,7 +459,8 @@ class tardis_kromer_plotter(object):
             lams.append((csts.c.cgs / self.line_in_nu[mask]).to(units.AA))
             weights.append(self.line_in_L[mask] /
                            self.mdl.time_of_simulation)
-            colors.append(self.cmap(float(i+1) / len(self.list_of_el) ))
+            #colors.append(self.cmap(float(i+1) / len(self.list_of_el) ))
+            colors.append(self.colors[i])
 
         Lnorm = 0
         for w in weights:
@@ -447,7 +475,7 @@ class tardis_kromer_plotter(object):
                 reti.set_facecolor(colors[i])
                 reti.set_edgecolor(colors[i])
                 reti.set_linewidth(0)
-                reti.xy[:, 1] *= Lnorm
+                reti.xy[:, 1] *= Lnorm / self._scaling
 
     def _generate_and_add_colormap(self):
         """generate the custom color map, linking colours with atomic
@@ -455,7 +483,9 @@ class tardis_kromer_plotter(object):
 
         values = [self.cmap(float(i) / len(self.list_of_el))
                   for i in xrange(1, len(self.list_of_el)+1)]
-        custcmap = matplotlib.colors.ListedColormap(values)
+        
+        #custcmap = matplotlib.colors.ListedColormap(values)
+        custcmap = matplotlib.colors.ListedColormap(self.colors)
         bounds = np.arange(len(self.list_of_el)+1) + 0.5
         norm = matplotlib.colors.Normalize(vmin=1, vmax=len(self.list_of_el)+1)
         mappable = cm.ScalarMappable(norm=norm, cmap=custcmap)

@@ -970,7 +970,7 @@ class Plot_Spectra(object):
           self.D['flux_maxima_red_f7'], self.D['wavelength_minima_f7'], 
           self.D['flux_minima_f7'], color='r')
         
-        #ax.grid()
+        ax.grid(True)
         plt.tight_layout()
         self.save_figure()
         self.show_figure()
