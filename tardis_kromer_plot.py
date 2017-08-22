@@ -95,13 +95,13 @@ class tardis_kromer_plotter(object):
         self._line_out_L = None
         
         self.list_of_el = [6, 8, 11, 12, 14, 16, 20, 22, 24, 26, 27, 28]
-        #self.colors = ['crimson', 'purple', 'darkgreen', 'olive',
-        #  'sienna', 'orange', 'gold', 'yellow', 'lightblue',
-        #  'blueviolet', 'violet', 'dimgray', 'darkgray']
-        self.colors =  ['#e31a1c', '#a6cee3', '#fb9a99', '#33a02c', '#1f78b4',
-          '#b2df8a',
-          '#ff7f00', '#cab2d6',     '#fdbf6f', '#6a3d9a', '#ffff99',
-          '#b15928']
+        self.colors =  ['#e31a1c', '#fb9a99', '#fdbf6f', '#ff7f00', 'gold',
+          '#ffff99', '#33a02c', '#1f78b4', '#a6cee3', 'orchid', '#cab2d6',
+          '#6a3d9a']
+
+        #self.colors =  ['#e31a1c', '#fb9a99', '#fdbf6f', '#ff7f00', '#ffff99',
+        #  '#b15928', '#b2df8a', '#33a02c', '#a6cee3', '#1f78b4', '#cab2d6',
+        #  '#6a3d9a']
         
         self.mdl = mdl
 
@@ -418,7 +418,6 @@ class tardis_kromer_plotter(object):
 
         lams = [self.lam_noint, self.lam_escat]
         weights = [self.weights_noint, self.weights_escat]
-        #colors = ["b", "dodgerblue"]
         colors = ['dimgray', 'darkgray']
 
         for i, zi in enumerate(self.list_of_el):
@@ -501,11 +500,11 @@ class tardis_kromer_plotter(object):
 
     def _generate_and_add_legend(self):
         """add legend"""
-        bpatch = patches.Patch(color="b", label="photosphere")
-        gpatch = patches.Patch(color="dodgerblue", label="e-scattering")
-        bline = lines.Line2D([], [], color="black", label="virtual spectrum")
-        #self.ax.legend(handles=[bline, gpatch, bpatch], frameon=True, fontsize=18., numpoints=1, labelspacing=0.05 ,loc=(0.775,0.5))
-        self.ax.legend(handles=[bline, gpatch, bpatch], frameon=True, fontsize=18., numpoints=1, labelspacing=0.05 ,loc=1)
+        bpatch = patches.Patch(color='dimgray', label='photosphere')
+        gpatch = patches.Patch(color='darkgray', label='e-scattering')
+        bline = lines.Line2D([], [], color='black', label='virtual spectrum')
+        self.ax.legend(handles=[bline, gpatch, bpatch], frameon=True,
+                       fontsize=18., numpoints=1, labelspacing=0.05, loc=1)
 
     def _axis_handling_label_rescale(self):
         """add axis labels and perform axis scaling"""
