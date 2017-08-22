@@ -276,22 +276,20 @@ class Analyse_Spectra(Utility):
             
             #Find the points where the sign of the derivative changes.
             #These are used as the conditions to determine maxima and
-            #minima candidates. Note that the minima are forced to be to the
-            #left of the rest wavelength of the feature, as to ensure
-            #a negative velocity due to the Doppler effect -- to check
-            #whether this messes up flagging shoulders afterwards.
-            minima_cond = ((der_window[0:-1] < 0.) & (der_window[1:] > 0.)
-                            & (w_window[0:-1] < max(self.MD['rest_f'+key]))) 
+            #minima candidates.
+            minima_cond = ((der_window[0:-3] < 0.) & (der_window[1:-2] < 0.)
+                           & (der_window[2:-1] > 0.) & (der_window[3:] > 0.)) 
                             
-            maxima_cond = ((der_window[0:-1] > 0.) & (der_window[1:] < 0.)) 
+            maxima_cond = ((der_window[0:-3] > 0.) & (der_window[1:-2] > 0.)
+                           & (der_window[2:-1] < 0.) & (der_window[3:] < 0.))     
     
-            #Condition array has len = len(w_window) - 1 as it uses consecutive
+            #Condition array has len = len(w_window) - 3 as it uses consecutive
             #elements. Below it could be used w_window[1:], differences in the
             #computed quantities are not significant (usually < 1ang in pEW.)
-            w_minima_window = w_window[0:-1][minima_cond]
-            f_minima_window = f_window[0:-1][minima_cond]
-            w_maxima_window = w_window[0:-1][maxima_cond]            
-            f_maxima_window = f_window[0:-1][maxima_cond]                        
+            w_minima_window = w_window[1:-2][minima_cond]
+            f_minima_window = f_window[1:-2][minima_cond]
+            w_maxima_window = w_window[1:-2][maxima_cond]            
+            f_maxima_window = f_window[1:-2][maxima_cond]                        
                                     
             def guess_minimum(potential_w, potential_f):
                 """ In low noise spectra, get minimum at wavelength where the
@@ -350,7 +348,7 @@ class Analyse_Spectra(Utility):
                     minima_window_red_condition = (min_red_condition
                       & (w_minima_window <= self.MD['red_upper_f'+key])
                       & (w_minima_window >= self.MD['red_lower_f'+key]))                      
-                   
+                                       
                     maxima_window_red_condition = (max_red_condition
                       & (w_maxima_window <= self.MD['red_upper_f'+key])
                       & (w_maxima_window >= self.MD['red_lower_f'+key]))             
@@ -369,7 +367,7 @@ class Analyse_Spectra(Utility):
                       minima_window_red_condition]
                     f_minima_window_red = f_minima_window[
                       minima_window_red_condition]    
-                    
+                                        
                     w_maxima_window_red = w_maxima_window[
                       maxima_window_red_condition]
                     f_maxima_window_red = f_maxima_window[
@@ -428,8 +426,8 @@ class Analyse_Spectra(Utility):
                         r_minima_window_blue.append(np.nan)
                                         
                 #ASelect only the minima which are bluer than the maximum
-                #and within the separation window or within 0.5% of the maximum
-                #flux. This avoids tricky situations where there ahppens to be
+                #and within the separation window or within 1% of the maximum
+                #flux. This avoids tricky situations where there happens to be
                 #a shoulder from a neighbor feature at the same level.                 
                 d_minima_window_blue = np.asarray(
                   [d for (d, r) in zip(d_minima_window_blue, r_minima_window_blue)
@@ -468,7 +466,7 @@ class Analyse_Spectra(Utility):
 
                
                 #Select only the minima which are bluer than the maximum
-                #and within the separation window or within 0.5% of the maximum
+                #and within the separation window or within 1% of the maximum
                 #flux. This avoids tricky situations where there ahppens to be
                 #a shoulder from a neighbor feature at the same level. 
                 d_minima_window_red = np.asarray(
@@ -770,71 +768,45 @@ class Compute_Uncertainty(Utility):
         return rms
         
     #@profile
-    def compute_uncertainty(self, quantity, quantity_value, bin_size):
-        def gaussian(x,A,mu,sigma):
-            return A*np.exp(-(x-mu)**2./(2.*sigma**2.))
+    def compute_uncertainty(self, q_MC, q_orig):
 
-        if not np.isnan(quantity).all():
+        
+        #Check that at least one computed value in the the MC simulations is
+        #not nan. Else, flag it.
+        if not np.isnan(q_MC).all() and not np.isnan(q_orig):
             flag = False
             
-            quantity = quantity[~np.isnan(quantity)]     
-            quantity = quantity[quantity != 0]       
-            quantity_median = np.median(quantity)   
-            quantity_mean = quantity.mean()
-
-            bin_edges = np.arange(
-              math.floor(min(quantity)), math.ceil(max(quantity)) + bin_size,
-              bin_size)
-           
-            center_bins = np.asarray([edge + (edge_next - edge)/2.
-              for edge, edge_next in zip(bin_edges,bin_edges[1:])])  
-           
-            pEW_histogram, edges = np.histogram(quantity,bins=bin_edges)
+            q_MC = q_MC[~np.isnan(q_MC)]              
+            q_MC_remout = np.copy(q_MC)
+            i = 0
             
-            try:                
-                popt, pcov = curve_fit(
-                  gaussian, center_bins, pEW_histogram, p0 = [
-                  self.N_MC_runs / 6., quantity_median, abs(quantity_median / 5.)])
+            #Iteractively remove outliers that are > 5 sigma from the original
+            #computed value. Uncertainty is the standard deviation of the 
+            #'trimmed' array of MC values.
+            while True:
+                len_init = len(q_MC_remout)            
+                unc = abs(np.std(q_MC_remout))
+                outlier_filter = ((q_MC_remout > q_orig - 5. * unc)
+                                  & (q_MC_remout < q_orig + 5. * unc))
+                q_MC_remout = q_MC_remout[outlier_filter]
                 
-                gaussian_mean = popt[1]
-                
-                unc = abs(popt[2])
-                #If uncertainty is smaller than bin_size, the object is not 
-                #not flagged, but the uncertainty becomes the bin_size.
-                if unc < bin_size:
-                    unc = bin_size
+                if (len(q_MC_remout) == len_init) or (i == 10):
+                    break
+                else:
+                    i += 1
+                   
+            q_median = np.median(q_MC_remout)   
+            q_mean = np.mean(q_MC_remout)            
 
-                #If the measured feature is nan, then assess whether the
-                #feature value is relatively close to the median of the MC
-                #realisations. If the difference is larger than the estimated
-                #uncertainty or the bin size, then flag this object --
-                #meaning that the measured value might not be reliable.   
+            #If the quantity value and the median of the values from the MC
+            #simulations are farther than the uncertainty, then flag it.
+            if abs(q_orig - q_median) > unc or i == 10:
+                flag = True  
 
-                if not np.isnan(quantity_value):
-                    if abs(quantity_value - quantity_median) > unc:
-                        flag = True  
-                
-                #Conversely, if the originally measured feature was nan, but
-                #the meadian of feature from the MC realisations is not nan,
-                #then attribute the median value to the feature, but flag it
-                #as unreliable. 
-                elif np.isnan(quantity_value) and not np.isnan(quantity_median):    
-                    flag = True
-                    quantity_value = quantity_median
-                        
-            #If the code fails to fit a gaussian and estimate the uncertainty,
-            #then flag the value as suspicius and attribute the value - mean
-            #as an estimated uncertainty.
-            except:
-                flag = True
-                unc = 2. * abs(quantity_value - quantity_mean)    
-
-        #If every single feature value measured from the mock spectra in the MC
-        #run is nan, then flag the object and attribute a nan uncertainty.
         else:
             unc, flag = np.nan, True  
-        
-        return unc, flag, quantity_value
+                
+        return unc, flag
 
     #@profile
     def run_uncertainties(self):
@@ -874,16 +846,14 @@ class Compute_Uncertainty(Utility):
         
         #Compute uncertainties.
         for key in self.keys:
-            for var, bin_size in zip(['pEW', 'velocity', 'depth'],
-                                     [0.5, 0.1, 0.01]):
+            for var in ['pEW', 'velocity', 'depth']:
                                          
-                unc, flag, updated_value = self.compute_uncertainty(
+                unc, flag = self.compute_uncertainty(
                   np.asarray(_store_D[var + '_f' + key]),
-                  self.D[var + '_f' + key], bin_size)
+                  self.D[var + '_f' + key])
                 
                 self.D[var + '_unc_f' + key] = unc          
                 self.D[var + '_flag_f' + key] = flag          
-                self.D[var + '_f' + key] = updated_value          
 
         return self.D  
 
