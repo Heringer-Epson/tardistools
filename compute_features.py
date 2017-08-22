@@ -13,7 +13,7 @@ from matplotlib.ticker import MultipleLocator
 import scipy
 
 from PyAstronomy import pyasl
-from scipy.optimize import curve_fit, OptimizeWarning
+from scipy.optimize import OptimizeWarning, curve_fit
 from scipy.signal import savgol_filter
 from astropy import constants as const
 
@@ -34,8 +34,7 @@ class Utility(object):
     
     def __init__(self, sep=20.):
         self.sep = sep
-        self.keys = ['6', '7']
-        self.keys_to_fit = ['6', '7']
+        self.keys = ['6', '7', 'C']
         self.c = const.c.to('km/s').value
         
         #Boundaries of line regions. From Silverman+ 2012 (paper II).
@@ -79,6 +78,13 @@ class Utility(object):
         self.MD['blue_lower_f9'], self.MD['blue_upper_f9'] = 7500., 8100.
         self.MD['red_lower_f9'], self.MD['red_upper_f9'] = 8200., 8900.   
     
+        #Below, the line boundaries are not really given the BSNIP paper IV;
+        #For the blue side, using the same limits as the red side of f7 and
+        #for the red side the regions was obtained by trial and error.
+        self.MD['rest_fC'] = [6580.]
+        self.MD['blue_lower_fC'], self.MD['blue_upper_fC'] = 6200., 6600. 
+        self.MD['red_lower_fC'], self.MD['red_upper_fC'] = 6400., 6800.
+            
 class Analyse_Spectra(Utility):
 
     """ Computes a set of spectral features, given an input dictioanry
@@ -644,7 +650,7 @@ class Analyse_Spectra(Utility):
             
             return wavelength_par_min, flux_par_min, velocity, depth    
     
-        for key in self.keys_to_fit:
+        for key in self.keys:
             
             a1, a2, a3, a4 = get_smoothed_velocity(
               self.D['wavelength_region_f' + key],
@@ -731,8 +737,8 @@ class Compute_Uncertainty(Utility):
         elif smoothing_window == 51:
             self._corr = 1. / 0.96   
         else:
-            raise ValueError("Smoothing correction not defined for this"
-                             +"smoothing window.")
+            raise ValueError('Smoothing correction not defined for this'
+                             + 'smoothing window.')
 
     #@profile
     def compute_flux_rms(self, wave, fnor, fsmo):
@@ -844,7 +850,7 @@ class Compute_Uncertainty(Utility):
         #Initialize dictionary to store compute quantities (such as pEW)
         #for the mock runs
         _store_D = {}
-        for key in self.keys_to_fit: 
+        for key in self.keys: 
             _store_D['pEW_f' + key] = []
             _store_D['velocity_f' + key] = []
             _store_D['depth_f' + key] = []
@@ -861,13 +867,13 @@ class Compute_Uncertainty(Utility):
               D={}, smoothing_window=self.smoothing_window,
               deredshift_and_normalize=False, verbose=False).run_analysis()     
         
-            for key in self.keys_to_fit:                
+            for key in self.keys:                
                 _store_D['pEW_f' + key].append(mock_D['pEW_f' + key])
                 _store_D['velocity_f' + key].append(mock_D['velocity_f' + key])
                 _store_D['depth_f' + key].append(mock_D['depth_f' + key])
         
         #Compute uncertainties.
-        for key in self.keys_to_fit:
+        for key in self.keys:
             for var, bin_size in zip(['pEW', 'velocity', 'depth'],
                                      [0.5, 0.1, 0.01]):
                                          
@@ -881,11 +887,14 @@ class Compute_Uncertainty(Utility):
 
         return self.D  
 
-class Plot_Spectra(object):
+class Plot_Spectra(Utility):
     """
     """
     
     def __init__(self, D, outfile=False, show_fig=False, save_fig=False):
+
+        Utility.__init__(self)
+
         self.D = D
         self.outfile = outfile
         self.show_fig = show_fig
@@ -941,6 +950,8 @@ class Plot_Spectra(object):
             plt.show()        
             
     def make_plots(self):
+        
+        colors = ['b', 'r', 'g']
         alpha = 0.5
                           
         fig = plt.figure(figsize=(16, 12))
@@ -953,22 +964,27 @@ class Plot_Spectra(object):
         
         ax.plot(self.D['wavelength_corr'], self.D['flux_smoothed'],
                 color='k', alpha=1., lw=2.)
-                           
-        self.add_feature_shade(ax, self.D['wavelength_region_f6'],
-                               self.D['flux_normalized_region_f6'],
-                               self.D['pseudo_cont_flux_f6'], 'b', alpha)                                   
-        self.add_feature_shade(ax, self.D['wavelength_region_f7'],
-                               self.D['flux_normalized_region_f7'],
-                               self.D['pseudo_cont_flux_f7'], 'r', alpha)                                                                                         
-                        
-        self.add_boundaries(ax, self.D['wavelength_maxima_blue_f6'], 
-          self.D['flux_maxima_blue_f6'], self.D['wavelength_maxima_red_f6'], 
-          self.D['flux_maxima_red_f6'], self.D['wavelength_minima_f6'], 
-          self.D['flux_minima_f6'], color='b')
-        self.add_boundaries(ax, self.D['wavelength_maxima_blue_f7'], 
-          self.D['flux_maxima_blue_f7'], self.D['wavelength_maxima_red_f7'], 
-          self.D['flux_maxima_red_f7'], self.D['wavelength_minima_f7'], 
-          self.D['flux_minima_f7'], color='r')
+
+        for i, key in enumerate(self.keys):
+        
+            self.add_feature_shade(ax, self.D['wavelength_region_f' + key],
+                                   self.D['flux_normalized_region_f' + key],
+                                   self.D['pseudo_cont_flux_f' + key],
+                                   color=colors[i], alpha=alpha)            
+        
+                                 
+            self.add_feature_shade(ax, self.D['wavelength_region_f' + key],
+                                   self.D['flux_normalized_region_f' + key],
+                                   self.D['pseudo_cont_flux_f' + key],
+                                   color=colors[i], alpha=alpha)                                                                                         
+            
+            self.add_boundaries(ax, self.D['wavelength_maxima_blue_f' + key], 
+                                self.D['flux_maxima_blue_f' + key],
+                                self.D['wavelength_maxima_red_f' + key], 
+                                self.D['flux_maxima_red_f' + key],
+                                self.D['wavelength_minima_f' + key], 
+                                self.D['flux_minima_f' + key], color=colors[i])
+
         
         ax.grid(True)
         plt.tight_layout()
