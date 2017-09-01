@@ -98,10 +98,6 @@ class tardis_kromer_plotter(object):
         self.colors =  ['#e31a1c', '#fb9a99', '#fdbf6f', '#ff7f00', 'gold',
           '#ffff99', '#33a02c', '#1f78b4', '#a6cee3', 'orchid', '#cab2d6',
           '#6a3d9a']
-
-        #self.colors =  ['#e31a1c', '#fb9a99', '#fdbf6f', '#ff7f00', '#ffff99',
-        #  '#b15928', '#b2df8a', '#33a02c', '#a6cee3', '#1f78b4', '#cab2d6',
-        #  '#6a3d9a']
         
         self.mdl = mdl
 
