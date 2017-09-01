@@ -57,7 +57,7 @@ MD['red_lower_f6'], MD['red_upper_f6'] = 5750., 6060. #6000. originally
 
 MD['rest_f7'] = [6355.21]
 MD['blue_lower_f7'], MD['blue_upper_f7'] = 5750., 6060.
-MD['red_lower_f7'], MD['red_upper_f7'] = 6200., 6600.
+MD['red_lower_f7'], MD['red_upper_f7'] = 6150., 6600. #6200. originally
        
 MD['rest_f8'] = [7773.37]
 MD['blue_lower_f8'], MD['blue_upper_f8'] = 6800., 7450.
@@ -71,7 +71,7 @@ MD['red_lower_f9'], MD['red_upper_f9'] = 8200., 8900.
 #For the blue side, using the same limits as the red side of f7 and
 #for the red side the regions was obtained by trial and error.
 MD['rest_fC'] = [6580.]
-MD['blue_lower_fC'], MD['blue_upper_fC'] = 6200., 6600. 
+MD['blue_lower_fC'], MD['blue_upper_fC'] = 6150., 6600. 
 MD['red_lower_fC'], MD['red_upper_fC'] = 6400., 6800.
     
 class Analyse_Spectra(object):
@@ -288,7 +288,7 @@ class Analyse_Spectra(object):
             f_minima_window = f_window[1:-2][minima_cond]
             w_maxima_window = w_window[1:-2][maxima_cond]            
             f_maxima_window = f_window[1:-2][maxima_cond]                        
-                                    
+                                                
             def guess_minimum(potential_w, potential_f):
                 """ In low noise spectra, get minimum at wavelength where the
                 line would have been shifted due to a typical ejecta
@@ -301,7 +301,7 @@ class Analyse_Spectra(object):
                     
                     typical_w = (rest_w * np.sqrt(1. + typical_v / c) / 
                       np.sqrt(1. - typical_v / c))
-                                          
+                                                              
                     w_diff = np.absolute(potential_w - typical_w)
                     w_guess = potential_w[w_diff.argmin()]
                     f_guess = potential_f[w_diff.argmin()]
@@ -370,7 +370,7 @@ class Analyse_Spectra(object):
                       maxima_window_red_condition]
                     f_maxima_window_red = f_maxima_window[
                       maxima_window_red_condition]    
-                    
+                                        
                     #Select the maxima to the right and to the left of the
                     #Minimum determined above.
                     try:
