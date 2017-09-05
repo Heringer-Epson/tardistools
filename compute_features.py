@@ -182,9 +182,9 @@ class Analyse_Spectra(object):
             flux_window = aux_flux[window_condition]           
             normalization_factor = np.mean(flux_window)     
             aux_flux /= normalization_factor
-            return aux_flux
+            return aux_flux, normalization_factor
        
-        self.D['flux_normalized'] = get_normalized_flux(
+        self.D['flux_normalized'], self.D['norm_factor'] = get_normalized_flux(
           self.D['wavelength_corr'], self.D['flux_raw'], self.D['extinction'])   
 
     #@profile
