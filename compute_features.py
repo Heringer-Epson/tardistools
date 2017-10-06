@@ -738,7 +738,8 @@ class Compute_Uncertainty(object):
 
         #Relatively small correction needed due to the fact that the smoothed
         #spectra 'follows' the noise, leading to a smaller than expected rms noise.
-        if smoothing_window == 21:
+        #17 below to be checked.
+        if smoothing_window == 21 or smoothing_window == 17:
             self._corr = 1. / 0.93
         elif smoothing_window == 51:
             self._corr = 1. / 0.96   
