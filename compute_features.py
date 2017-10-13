@@ -72,7 +72,7 @@ MD['red_lower_f9'], MD['red_upper_f9'] = 8200., 8900.
 #For the blue side, using the same limits as the red side of f7 and
 #for the red side the regions was obtained by trial and error.
 MD['rest_fC'] = [6580.]
-MD['blue_lower_fC'], MD['blue_upper_fC'] = 6150., 6600. 
+MD['blue_lower_fC'], MD['blue_upper_fC'] = 6100., 6600. 
 MD['red_lower_fC'], MD['red_upper_fC'] = 6300., 6800.
     
 class Analyse_Spectra(object):
@@ -129,8 +129,8 @@ class Analyse_Spectra(object):
                  smoothing_window=21, deredshift_and_normalize=True,
                  verbose=False):
         
-        self.wavelength = wavelength
-        self.flux = flux
+        self.wavelength = np.copy(wavelength)
+        self.flux = np.copy(flux)
         self.redshift = redshift
         self.extinction = extinction
         self.D = D
@@ -700,7 +700,10 @@ class Analyse_Spectra(object):
         self.compute_pEW()
         self.compute_smoothed_velocity_and_depth()
         
-        return self.D  
+        #For some reason I don't quite understand, one needs to return a copy,
+        #otherwise calling this class consecutively will return linked dicts.
+        return self.D.copy()  
+        #return self.D
 
 class Compute_Uncertainty(object):
     """Uses a MC approach to compute the uncertainty of spectral features.
@@ -738,14 +741,10 @@ class Compute_Uncertainty(object):
 
         #Relatively small correction needed due to the fact that the smoothed
         #spectra 'follows' the noise, leading to a smaller than expected rms noise.
-        #17 below to be checked.
-        if smoothing_window == 21 or smoothing_window == 17:
-            self._corr = 1. / 0.93
-        elif smoothing_window == 51:
-            self._corr = 1. / 0.96   
-        else:
-            raise ValueError('Smoothing correction not defined for this'
-                             + 'smoothing window.')
+        #Difficult to quantify, but simulating noise in a sine profile shows that
+        #the rms is rarely overestimated by more than 10% for smoothing windows
+        #of 17--51.
+        self._corr = 1.1
 
     #@profile
     def compute_flux_rms(self, wave, fnor, fsmo):
