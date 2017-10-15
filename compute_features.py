@@ -73,7 +73,7 @@ MD['red_lower_f9'], MD['red_upper_f9'] = 8200., 8900.
 #for the red side the regions was obtained by trial and error.
 MD['rest_fC'] = [6580.]
 MD['blue_lower_fC'], MD['blue_upper_fC'] = 6100., 6600. 
-MD['red_lower_fC'], MD['red_upper_fC'] = 6300., 6800.
+MD['red_lower_fC'], MD['red_upper_fC'] = 6300., 6900.
     
 class Analyse_Spectra(object):
     """Computes a set of spectral features.
