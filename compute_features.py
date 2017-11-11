@@ -10,7 +10,6 @@ from scipy.optimize import curve_fit
 from scipy.signal import savgol_filter
 from scipy.integrate import simps
 from math import factorial
-
 from PyAstronomy import pyasl
 from astropy import constants as const
 
@@ -72,8 +71,8 @@ MD['red_lower_f9'], MD['red_upper_f9'] = 8200., 8900.
 #For the blue side, using the same limits as the red side of f7 and
 #for the red side the regions was obtained by trial and error.
 MD['rest_fC'] = [6580.]
-MD['blue_lower_fC'], MD['blue_upper_fC'] = 6100., 6600. 
-MD['red_lower_fC'], MD['red_upper_fC'] = 6300., 6700.
+MD['blue_lower_fC'], MD['blue_upper_fC'] = 6100., 6400. 
+MD['red_lower_fC'], MD['red_upper_fC'] = 6300., 6600.
     
 class Analyse_Spectra(object):
     """Computes a set of spectral features.
@@ -188,24 +187,6 @@ class Analyse_Spectra(object):
        
         self.D['flux_normalized'], self.D['norm_factor'] = get_normalized_flux(
           self.D['wavelength_corr'], self.D['flux_raw'], self.D['extinction'])   
-
-    #@profile
-    def convolve_with_filters(self):
-        """Use PyAStronmy TransmissionCurves to convolve the de-redshifted,
-        rest-frame spectrum with Johnson filters.
-        """
-        tcs = pyasl.TransmissionCurves()
-        #@profile
-        def get_color(w, f, req_filter):
-            transmission = tcs.getTransCurve('Johnson ' + req_filter)(w)
-            conv_spec = tcs.convolveWith(w, f, 'Johnson ' + req_filter)
-            filter_L = simps(conv_spec, w) / simps(transmission, w)
-            return filter_L
-        
-        for inp_filter in ['U', 'B', 'V']:
-            filter_L = get_color(self.D['wavelength_corr'],
-                                 self.D['flux_normalized'], inp_filter)
-            self.D['filter_Johnson-' + inp_filter] = filter_L
 
     #@profile
     def smooth_spectrum(self):
@@ -689,7 +670,6 @@ class Analyse_Spectra(object):
         if self.deredshift_and_normalize:
             self.deredshift_spectrum()
             self.normalize_flux_and_correct_extinction()
-            self.convolve_with_filters()    
         else:
             self.D['wavelength_corr'] = self.D['wavelength_raw'] 
             self.D['flux_normalized'] = self.D['flux_raw'] 
